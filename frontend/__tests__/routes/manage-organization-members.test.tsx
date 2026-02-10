@@ -15,6 +15,7 @@ import {
   resetOrgsAndMembersMockData,
 } from "#/mocks/org-handlers";
 import OptionService from "#/api/option-service/option-service.api";
+import { useSelectedOrganizationStore } from "#/stores/selected-organization-store";
 
 vi.mock("react-i18next", async () => {
   const actual =
@@ -71,6 +72,9 @@ describe("Manage Organization Members Route", () => {
   const getMeSpy = vi.spyOn(organizationService, "getMe");
 
   beforeEach(() => {
+    // Reset Zustand store to ensure clean state and avoid loader redirects
+    useSelectedOrganizationStore.setState({ organizationId: null });
+
     const getConfigSpy = vi.spyOn(OptionService, "getConfig");
     // @ts-expect-error - partial mock for testing
     getConfigSpy.mockResolvedValue({
@@ -109,6 +113,8 @@ describe("Manage Organization Members Route", () => {
     resetOrgsAndMembersMockData();
     // Clear queryClient cache to ensure fresh data for next test
     queryClient.clear();
+    // Reset Zustand store to avoid polluting other test files
+    useSelectedOrganizationStore.setState({ organizationId: null });
   });
 
   const renderManageOrganizationMembers = () =>
