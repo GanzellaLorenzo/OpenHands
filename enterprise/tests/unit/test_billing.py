@@ -299,6 +299,8 @@ async def test_success_callback_success():
     mock_billing_session.status = 'in_progress'
     mock_billing_session.user_id = 'mock_user'
 
+    mock_org = MagicMock()
+
     with (
         patch('server.routes.billing.session_maker') as mock_session_maker,
         patch('stripe.checkout.Session.retrieve') as mock_stripe_retrieve,
@@ -319,7 +321,17 @@ async def test_success_callback_success():
         ) as mock_update_budget,
     ):
         mock_db_session = MagicMock()
+        # First query: BillingSession (query().filter().filter().first())
         mock_db_session.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_billing_session
+        # Second query: Org (query().filter().first()) - use side_effect for different return chains
+        mock_query_chain_billing = MagicMock()
+        mock_query_chain_billing.filter.return_value.filter.return_value.first.return_value = mock_billing_session
+        mock_query_chain_org = MagicMock()
+        mock_query_chain_org.filter.return_value.first.return_value = mock_org
+        mock_db_session.query.side_effect = [
+            mock_query_chain_billing,
+            mock_query_chain_org,
+        ]
         mock_session_maker.return_value.__enter__.return_value = mock_db_session
 
         mock_stripe_retrieve.return_value = MagicMock(
@@ -339,6 +351,9 @@ async def test_success_callback_success():
             'mock_org_id',
             125.0,  # 100 + (25.00 from Stripe)
         )
+
+        # Verify BYOR export is enabled for the org (updated in same session)
+        assert mock_org.byor_export_enabled is True
 
         # Verify database updates
         assert mock_billing_session.status == 'completed'

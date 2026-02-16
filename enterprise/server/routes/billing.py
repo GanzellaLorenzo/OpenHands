@@ -17,6 +17,7 @@ from starlette.datastructures import URL
 from storage.billing_session import BillingSession
 from storage.database import session_maker
 from storage.lite_llm_manager import LiteLlmManager
+from storage.org import Org
 from storage.subscription_access import SubscriptionAccess
 from storage.user_store import UserStore
 
@@ -258,6 +259,12 @@ async def success_callback(session_id: str, request: Request):
         await LiteLlmManager.update_team_and_users_budget(
             str(user.current_org_id), new_max_budget
         )
+
+        # Enable BYOR export for the org now that they've purchased credits
+        # Update within the same session to avoid nested session issues
+        org = session.query(Org).filter(Org.id == user.current_org_id).first()
+        if org:
+            org.byor_export_enabled = True
 
         # Store transaction status
         billing_session.status = 'completed'

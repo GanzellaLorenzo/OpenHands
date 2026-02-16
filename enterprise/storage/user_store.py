@@ -5,6 +5,7 @@ Store class for managing users.
 import asyncio
 import uuid
 from typing import Optional
+from uuid import UUID
 
 from server.auth.token_manager import TokenManager
 from server.constants import (
@@ -27,6 +28,7 @@ from storage.org_member import OrgMember
 from storage.role_store import RoleStore
 from storage.user import User
 from storage.user_settings import UserSettings
+from utils.identity import resolve_display_name
 
 from openhands.utils.async_utils import GENERAL_TIMEOUT, call_async_from_sync
 
@@ -53,7 +55,8 @@ class UserStore:
             org = Org(
                 id=uuid.UUID(user_id),
                 name=f'user_{user_id}_org',
-                contact_name=user_info['preferred_username'],
+                contact_name=resolve_display_name(user_info)
+                or user_info.get('preferred_username', ''),
                 contact_email=user_info['email'],
                 v1_enabled=True,
             )
@@ -170,13 +173,28 @@ class UserStore:
         )
         decrypted_user_settings = UserSettings(**kwargs)
         with session_maker() as session:
+            # Check if user has completed billing sessions to enable BYOR export
+            from storage.billing_session import BillingSession
+
+            has_completed_billing = (
+                session.query(BillingSession)
+                .filter(
+                    BillingSession.user_id == user_id,
+                    BillingSession.status == 'completed',
+                )
+                .first()
+                is not None
+            )
+
             # create personal org
             org = Org(
                 id=uuid.UUID(user_id),
                 name=f'user_{user_id}_org',
                 org_version=user_settings.user_version,
-                contact_name=user_info['username'],
+                contact_name=resolve_display_name(user_info)
+                or user_info.get('username', ''),
                 contact_email=user_info['email'],
+                byor_export_enabled=has_completed_billing,
             )
             session.add(org)
 
@@ -755,6 +773,75 @@ class UserStore:
         """List all users."""
         with session_maker() as session:
             return session.query(User).all()
+
+    @staticmethod
+    def update_current_org(user_id: str, org_id: UUID) -> Optional[User]:
+        """Update the user's current organization.
+
+        Args:
+            user_id: The user's ID (Keycloak user ID)
+            org_id: The organization ID to set as current
+
+        Returns:
+            User: The updated user object, or None if user not found
+        """
+        with session_maker() as session:
+            user = (
+                session.query(User)
+                .filter(User.id == uuid.UUID(user_id))
+                .with_for_update()
+                .first()
+            )
+            if not user:
+                return None
+
+            user.current_org_id = org_id
+            session.commit()
+            session.refresh(user)
+            return user
+
+    @staticmethod
+    async def backfill_contact_name(user_id: str, user_info: dict) -> None:
+        """Update contact_name on the personal org if it still has a username-style value.
+
+        Called during login to gradually fix existing users whose contact_name
+        was stored as their username (before the resolve_display_name fix).
+        Preserves custom values that were set via the PATCH endpoint.
+        """
+        real_name = resolve_display_name(user_info)
+        if not real_name:
+            logger.debug(
+                'backfill_contact_name:no_real_name',
+                extra={'user_id': user_id},
+            )
+            return
+
+        preferred_username = user_info.get('preferred_username', '')
+        username = user_info.get('username', '')
+
+        async with a_session_maker() as session:
+            result = await session.execute(
+                select(Org).filter(Org.id == uuid.UUID(user_id))
+            )
+            org = result.scalars().first()
+            if not org:
+                logger.debug(
+                    'backfill_contact_name:org_not_found',
+                    extra={'user_id': user_id},
+                )
+                return
+
+            if org.contact_name in (preferred_username, username):
+                logger.info(
+                    'backfill_contact_name:updated',
+                    extra={
+                        'user_id': user_id,
+                        'old': org.contact_name,
+                        'new': real_name,
+                    },
+                )
+                org.contact_name = real_name
+                await session.commit()
 
     # Prevent circular imports
     from typing import TYPE_CHECKING
