@@ -356,7 +356,7 @@ class Runtime(FileEditRuntimeMixin):
                 self._run_cmd_with_retry(
                     cmd, f'Failed to add env vars [{env_vars.keys()}] to environment'
                 )
-            except RuntimeError as e:
+            except RuntimeError:
                 # Re-raise with redacted error message to avoid leaking secret values
                 raise RuntimeError(
                     f'Failed to add env vars [{list(env_vars.keys())}] to environment. '
@@ -387,7 +387,7 @@ class Runtime(FileEditRuntimeMixin):
                 self._run_cmd_with_retry(
                     cmd, f'Failed to add env vars [{env_vars.keys()}] to environment'
                 )
-            except RuntimeError as e:
+            except RuntimeError:
                 # Re-raise with redacted error message to avoid leaking secret values
                 # The original error may contain the full export command with secrets
                 raise RuntimeError(
@@ -403,7 +403,7 @@ class Runtime(FileEditRuntimeMixin):
                 self._run_cmd_with_retry(
                     bashrc_cmd, f'Failed to add env vars [{env_vars.keys()}] to .bashrc'
                 )
-            except RuntimeError as e:
+            except RuntimeError:
                 # Re-raise with redacted error message to avoid leaking secret values
                 raise RuntimeError(
                     f'Failed to add env vars [{list(env_vars.keys())}] to .bashrc. '
