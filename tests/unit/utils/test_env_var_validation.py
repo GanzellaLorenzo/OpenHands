@@ -2,7 +2,10 @@
 
 import pytest
 
-from openhands.utils.env_var_validation import is_valid_env_var_name, validate_env_var_name
+from openhands.utils.env_var_validation import (
+    is_valid_env_var_name,
+    validate_env_var_name,
+)
 
 
 class TestIsValidEnvVarName:
