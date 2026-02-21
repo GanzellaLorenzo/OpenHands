@@ -16208,19 +16208,19 @@
     "uk": "Щодо подяк стороннім проєктам та ліцензій з відкритим кодом див."
   },
   "CREDITS$CREDITS_MD": {
-    "en": "CREDITS.md",
-    "ja": "CREDITS.md",
-    "zh-CN": "CREDITS.md",
-    "zh-TW": "CREDITS.md",
-    "ko-KR": "CREDITS.md",
-    "no": "CREDITS.md",
-    "it": "CREDITS.md",
-    "pt": "CREDITS.md",
-    "es": "CREDITS.md",
-    "ar": "CREDITS.md",
-    "fr": "CREDITS.md",
-    "tr": "CREDITS.md",
-    "de": "CREDITS.md",
-    "uk": "CREDITS.md"
+    "en": "Credits",
+    "ja": "クレジット",
+    "zh-CN": "致谢",
+    "zh-TW": "鳴謝",
+    "ko-KR": "크레딧",
+    "no": "Krediteringer",
+    "it": "Crediti",
+    "pt": "Créditos",
+    "es": "Créditos",
+    "ar": "الشكر والتقدير",
+    "fr": "Crédits",
+    "tr": "Katkılar",
+    "de": "Credits",
+    "uk": "Подяки"
   }
 }
