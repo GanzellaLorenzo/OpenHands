@@ -3,11 +3,10 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from pydantic import SecretStr
-
 from integrations.bitbucket_data_center.bitbucket_data_center_service import (
     SaaSBitbucketDataCenterService,
 )
+from pydantic import SecretStr
 
 
 class TestSaaSBitbucketDataCenterServiceInit:

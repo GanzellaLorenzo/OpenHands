@@ -1,14 +1,14 @@
 from urllib.parse import urlparse
 
 from pydantic import SecretStr
+from server.auth.constants import BITBUCKET_DATA_CENTER_TOKEN_URL
+from server.auth.token_manager import TokenManager
 
 from openhands.core.logger import openhands_logger as logger
 from openhands.integrations.bitbucket_data_center.bitbucket_data_center_service import (
     BitbucketDataCenterService,
 )
 from openhands.integrations.service_types import ProviderType
-from server.auth.constants import BITBUCKET_DATA_CENTER_TOKEN_URL
-from server.auth.token_manager import TokenManager
 
 
 class SaaSBitbucketDataCenterService(BitbucketDataCenterService):
