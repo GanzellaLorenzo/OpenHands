@@ -1909,18 +1909,6 @@ files = [
 scantree = ">=0.0.4"
 
 [[package]]
-name = "diskcache"
-version = "5.6.3"
-description = "Disk Cache -- Disk and file backed persistent cache."
-optional = false
-python-versions = ">=3"
-groups = ["main"]
-files = [
-    {file = "diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19"},
-    {file = "diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc"},
-]
-
-[[package]]
 name = "distlib"
 version = "0.4.0"
 description = "Distribution utilities"
@@ -7520,14 +7508,13 @@ files = [
 [package.dependencies]
 beartype = ">=0.20.0"
 cachetools = {version = ">=5.0.0", optional = true, markers = "extra == \"memory\""}
-diskcache = {version = ">=5.0.0", optional = true, markers = "extra == \"disk\""}
 keyring = {version = ">=25.6.0", optional = true, markers = "extra == \"keyring\""}
 pathvalidate = {version = ">=3.3.1", optional = true, markers = "extra == \"disk\""}
 py-key-value-shared = "0.3.0"
 redis = {version = ">=4.3.0", optional = true, markers = "extra == \"redis\""}
 
 [package.extras]
-disk = ["diskcache (>=5.0.0)", "pathvalidate (>=3.3.1)"]
+disk = ["pathvalidate (>=3.3.1)"]
 duckdb = ["duckdb (>=1.1.1)", "pytz (>=2025.2)"]
 dynamodb = ["aioboto3 (>=13.3.0)", "types-aiobotocore-dynamodb (>=2.16.0)"]
 elasticsearch = ["aiohttp (>=3.12)", "elasticsearch (>=8.0.0)"]
