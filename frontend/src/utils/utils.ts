@@ -207,7 +207,14 @@ export const shouldUseInstallationRepos = (
   }
 };
 
-export const getGitProviderBaseUrl = (gitProvider: Provider): string => {
+export const getGitProviderBaseUrl = (
+  gitProvider: Provider,
+  host?: string | null,
+): string => {
+  if (gitProvider === "bitbucket_data_center") {
+    if (!host || host.trim() === "") return "";
+    return host.startsWith("http") ? host : `https://${host}`;
+  }
   switch (gitProvider) {
     case "github":
       return "https://github.com";
@@ -271,8 +278,9 @@ export const constructPullRequestUrl = (
   prNumber: number,
   provider: Provider,
   repositoryName: string,
+  host?: string | null,
 ): string => {
-  const baseUrl = getGitProviderBaseUrl(provider);
+  const baseUrl = getGitProviderBaseUrl(provider, host);
 
   switch (provider) {
     case "github":
@@ -283,6 +291,10 @@ export const constructPullRequestUrl = (
       return `${baseUrl}/${repositoryName}/-/merge_requests/${prNumber}`;
     case "bitbucket":
       return `${baseUrl}/${repositoryName}/pull-requests/${prNumber}`;
+    case "bitbucket_data_center": {
+      const [project, repo] = repositoryName.split("/");
+      return `${baseUrl}/projects/${project}/repos/${repo}/pull-requests/${prNumber}`;
+    }
     case "azure_devops": {
       // Azure DevOps format: org/project/repo
       const parts = repositoryName.split("/");
@@ -316,8 +328,9 @@ export const constructMicroagentUrl = (
   gitProvider: Provider,
   repositoryName: string,
   microagentPath: string,
+  host?: string | null,
 ): string => {
-  const baseUrl = getGitProviderBaseUrl(gitProvider);
+  const baseUrl = getGitProviderBaseUrl(gitProvider, host);
 
   switch (gitProvider) {
     case "github":
@@ -328,6 +341,10 @@ export const constructMicroagentUrl = (
       return `${baseUrl}/${repositoryName}/-/blob/main/${microagentPath}`;
     case "bitbucket":
       return `${baseUrl}/${repositoryName}/src/main/${microagentPath}`;
+    case "bitbucket_data_center": {
+      const [project, repo] = repositoryName.split("/");
+      return `${baseUrl}/projects/${project}/repos/${repo}/browse/${microagentPath}?at=refs/heads/main`;
+    }
     case "azure_devops": {
       // Azure DevOps format: org/project/repo
       const parts = repositoryName.split("/");
@@ -375,8 +392,13 @@ export const extractRepositoryInfo = (
 export const constructRepositoryUrl = (
   provider: Provider,
   repositoryName: string,
+  host?: string | null,
 ): string => {
-  const baseUrl = getGitProviderBaseUrl(provider);
+  const baseUrl = getGitProviderBaseUrl(provider, host);
+  if (provider === "bitbucket_data_center") {
+    const [project, repo] = repositoryName.split("/");
+    return `${baseUrl}/projects/${project}/repos/${repo}`;
+  }
   return `${baseUrl}/${repositoryName}`;
 };
 
@@ -396,8 +418,9 @@ export const constructBranchUrl = (
   provider: Provider,
   repositoryName: string,
   branchName: string,
+  host?: string | null,
 ): string => {
-  const baseUrl = getGitProviderBaseUrl(provider);
+  const baseUrl = getGitProviderBaseUrl(provider, host);
 
   switch (provider) {
     case "github":
@@ -408,6 +431,10 @@ export const constructBranchUrl = (
       return `${baseUrl}/${repositoryName}/-/tree/${branchName}`;
     case "bitbucket":
       return `${baseUrl}/${repositoryName}/src/${branchName}`;
+    case "bitbucket_data_center": {
+      const [project, repo] = repositoryName.split("/");
+      return `${baseUrl}/projects/${project}/repos/${repo}/browse?at=refs/heads/${branchName}`;
+    }
     case "azure_devops": {
       // Azure DevOps format: org/project/repo
       const parts = repositoryName.split("/");
