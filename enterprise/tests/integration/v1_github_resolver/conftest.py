@@ -224,7 +224,7 @@ def mock_keycloak():
 
 @pytest.fixture
 def mock_github_api():
-    """Mock PyGithub API to capture posted comments."""
+    """Mock PyGithub API to capture posted comments (legacy - prefer mock_github_service)."""
     captured_comments = []
     captured_reactions = []
 
@@ -250,6 +250,47 @@ def mock_github_api():
             'captured_comments': captured_comments,
             'captured_reactions': captured_reactions,
         }
+
+
+@pytest.fixture
+def mock_github_service():
+    """
+    Real HTTP mock GitHub service.
+
+    This fixture starts an in-process HTTP server that implements the GitHub API.
+    PyGithub clients are patched to use this server instead of api.github.com.
+
+    Usage:
+        def test_something(mock_github_service):
+            # Configure the service
+            mock_github_service.configure_repo('owner/repo')
+            mock_github_service.configure_issue('owner/repo', 1)
+
+            # ... run your test code ...
+
+            # Verify
+            mock_github_service.assert_comment_sent("I'm on it")
+            mock_github_service.assert_reaction_added("eyes")
+    """
+    from github import Github
+
+    from .mocks import MockGitHubService
+
+    # Create and start the mock service
+    service = MockGitHubService()
+    service.start()
+
+    # Patch Github to use our mock server
+    original_init = Github.__init__
+
+    def patched_init(self, *args, **kwargs):
+        kwargs['base_url'] = service.base_url
+        original_init(self, *args, **kwargs)
+
+    with patch.object(Github, '__init__', patched_init):
+        yield service
+
+    service.stop()
 
 
 def create_webhook_signature(payload: bytes, secret: str) -> str:
