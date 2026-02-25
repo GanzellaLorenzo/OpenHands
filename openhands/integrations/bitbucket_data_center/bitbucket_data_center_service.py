@@ -58,6 +58,9 @@ class BitbucketDataCenterService(
         self.BASE_URL = f'https://{domain}/rest/api/1.0' if domain else ''
 
         if token:
+            token_val = token.get_secret_value()
+            if ':' not in token_val:
+                token = SecretStr(f'x-token-auth:{token_val}')
             self.token = token
 
         # Derive user_id from token when not explicitly provided.
