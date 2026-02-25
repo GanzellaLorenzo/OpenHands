@@ -189,7 +189,7 @@ function OnboardingForm() {
     <ModalBackdrop>
       <div
         data-testid="onboarding-form"
-        className="w-full max-w-[500px] mx-auto p-4 sm:p-6 h-full flex flex-col justify-center overflow-hidden"
+        className="w-[500px] max-w-[calc(100vw-2rem)] mx-auto p-4 sm:p-6 flex flex-col justify-center overflow-hidden"
       >
         <div className="flex flex-col items-center mb-4">
           <OpenHandsLogoWhite width={55} height={55} />
