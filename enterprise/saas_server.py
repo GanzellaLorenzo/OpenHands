@@ -38,9 +38,18 @@ from server.routes.integration.linear import linear_integration_router  # noqa: 
 from server.routes.integration.slack import slack_router  # noqa: E402
 from server.routes.mcp_patch import patch_mcp_server  # noqa: E402
 from server.routes.oauth_device import oauth_device_router  # noqa: E402
+from server.routes.org_invitations import (  # noqa: E402
+    accept_router as invitation_accept_router,
+)
+from server.routes.org_invitations import (  # noqa: E402
+    invitation_router,
+)
 from server.routes.orgs import org_router  # noqa: E402
 from server.routes.readiness import readiness_router  # noqa: E402
 from server.routes.user import saas_user_router  # noqa: E402
+from server.routes.verified_models import (  # noqa: E402
+    api_router as verified_models_router,
+)
 from server.sharing.shared_conversation_router import (  # noqa: E402
     router as shared_conversation_router,
 )
@@ -99,6 +108,11 @@ if GITLAB_APP_CLIENT_ID:
 
 base_app.include_router(api_keys_router)  # Add routes for API key management
 base_app.include_router(org_router)  # Add routes for organization management
+base_app.include_router(
+    verified_models_router
+)  # Add routes for verified models management
+base_app.include_router(invitation_router)  # Add routes for org invitation management
+base_app.include_router(invitation_accept_router)  # Add route for accepting invitations
 add_github_proxy_routes(base_app)
 add_debugging_routes(
     base_app
