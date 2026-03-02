@@ -48,7 +48,7 @@ google-cloud-recaptcha-enterprise = "^1.24.0"
 prometheus-client = "^0.24.0"
 pandas = "^2.2.0"
 numpy = "^2.2.0"
-mcp = ">=1.25.0"              # CVE-2025-66416 fix
+mcp = "^1.25.0"               # CVE-2025-66416 fix
 pillow = "^12.1.0"
 
 [tool.poetry.group.dev.dependencies]
