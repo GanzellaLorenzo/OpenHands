@@ -5,14 +5,14 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from openhands.agent_server.models import EventPage, EventSortOrder
-from openhands.sdk import Event
 from server.sharing.google_cloud_shared_event_service import (
     GoogleCloudSharedEventServiceInjector,
 )
 from server.sharing.shared_event_service import SharedEventService
 
+from openhands.agent_server.models import EventPage, EventSortOrder
 from openhands.app_server.event_callback.event_callback_models import EventKind
+from openhands.sdk import Event
 
 router = APIRouter(prefix='/api/shared-events', tags=['Sharing'])
 shared_event_service_dependency = Depends(

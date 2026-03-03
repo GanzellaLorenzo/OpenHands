@@ -9,8 +9,9 @@ from enum import Enum
 from typing import Any
 from uuid import uuid4
 
-from openhands.agent_server.utils import OpenHandsUUID, utc_now
 from pydantic import BaseModel, Field
+
+from openhands.agent_server.utils import OpenHandsUUID, utc_now
 
 ProviderType = Any
 MetricsSnapshot = Any

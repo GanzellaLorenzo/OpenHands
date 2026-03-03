@@ -20,8 +20,6 @@ from fastapi import Request
 from google.cloud import storage
 from google.cloud.storage.bucket import Bucket
 from google.cloud.storage.client import Client
-from openhands.agent_server.models import EventPage, EventSortOrder
-from openhands.sdk import Event
 from pydantic import Field
 from server.sharing.shared_conversation_info_service import (
     SharedConversationInfoService,
@@ -34,12 +32,14 @@ from server.sharing.sql_shared_conversation_info_service import (
     SQLSharedConversationInfoService,
 )
 
+from openhands.agent_server.models import EventPage, EventSortOrder
 from openhands.app_server.event.event_service import EventService
 from openhands.app_server.event.google_cloud_event_service import (
     GoogleCloudEventService,
 )
 from openhands.app_server.event_callback.event_callback_models import EventKind
 from openhands.app_server.services.injector import InjectorState
+from openhands.sdk import Event
 
 logger = logging.getLogger(__name__)
 

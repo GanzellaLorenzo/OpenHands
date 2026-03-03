@@ -1,9 +1,8 @@
-from openhands.sdk.secret import SecretSource, StaticSecret
-
 from openhands.app_server.user.user_context import UserContext
 from openhands.app_server.user.user_models import UserInfo
 from openhands.integrations.provider import PROVIDER_TOKEN_TYPE, ProviderHandler
 from openhands.integrations.service_types import ProviderType
+from openhands.sdk.secret import SecretSource, StaticSecret
 from openhands.server.user_auth.user_auth import UserAuth
 
 

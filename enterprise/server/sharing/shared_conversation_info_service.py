@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from uuid import UUID
 
-from openhands.sdk.utils.models import DiscriminatedUnionMixin
 from server.sharing.shared_conversation_models import (
     SharedConversation,
     SharedConversationPage,
@@ -11,6 +10,7 @@ from server.sharing.shared_conversation_models import (
 )
 
 from openhands.app_server.services.injector import Injector
+from openhands.sdk.utils.models import DiscriminatedUnionMixin
 
 
 class SharedConversationInfoService(ABC):

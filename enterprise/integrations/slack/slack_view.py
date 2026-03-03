@@ -13,7 +13,6 @@ from integrations.utils import (
     get_user_v1_enabled_setting,
 )
 from jinja2 import Environment
-from openhands.sdk import TextContent
 from slack_sdk import WebClient
 from storage.slack_conversation import SlackConversation
 from storage.slack_conversation_store import SlackConversationStore
@@ -34,6 +33,7 @@ from openhands.core.schema.agent import AgentState
 from openhands.events.action import MessageAction
 from openhands.events.serialization.event import event_to_dict
 from openhands.integrations.provider import ProviderHandler, ProviderType
+from openhands.sdk import TextContent
 from openhands.server.services.conversation_service import (
     create_new_conversation,
     setup_init_conversation_settings,
@@ -416,7 +416,6 @@ class SlackUpdateExistingConversationView(SlackNewConversationView):
         """Send a message to a v1 conversation using the agent server API."""
         # Import services within the method to avoid circular imports
         from openhands.agent_server.models import SendMessageRequest
-
         from openhands.app_server.config import (
             get_app_conversation_info_service,
             get_httpx_client,
@@ -467,9 +466,9 @@ class SlackUpdateExistingConversationView(SlackNewConversationView):
                 httpx_client=httpx_client,
             )
 
-            assert running_sandbox.session_api_key is not None, (
-                f'No session API key for sandbox: {running_sandbox.id}'
-            )
+            assert (
+                running_sandbox.session_api_key is not None
+            ), f'No session API key for sandbox: {running_sandbox.id}'
 
             # 3. Get the agent server URL
             agent_server_url = get_agent_server_url_from_sandbox(running_sandbox)

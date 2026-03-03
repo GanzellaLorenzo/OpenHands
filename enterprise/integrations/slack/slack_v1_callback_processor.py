@@ -3,13 +3,11 @@ from uuid import UUID
 
 import httpx
 from integrations.utils import CONVERSATION_URL, get_summary_instruction
-from openhands.agent_server.models import AskAgentRequest, AskAgentResponse
-from openhands.sdk import Event
-from openhands.sdk.event import ConversationStateUpdateEvent
 from pydantic import Field
 from slack_sdk import WebClient
 from storage.slack_team_store import SlackTeamStore
 
+from openhands.agent_server.models import AskAgentRequest, AskAgentResponse
 from openhands.app_server.event_callback.event_callback_models import (
     EventCallback,
     EventCallbackProcessor,
@@ -23,6 +21,8 @@ from openhands.app_server.event_callback.util import (
     ensure_running_sandbox,
     get_agent_server_url_from_sandbox,
 )
+from openhands.sdk import Event
+from openhands.sdk.event import ConversationStateUpdateEvent
 
 _logger = logging.getLogger(__name__)
 
@@ -253,9 +253,9 @@ class SlackV1CallbackProcessor(EventCallbackProcessor):
                 app_conversation_info.sandbox_id,
             )
 
-            assert sandbox.session_api_key is not None, (
-                f'No session API key for sandbox: {sandbox.id}'
-            )
+            assert (
+                sandbox.session_api_key is not None
+            ), f'No session API key for sandbox: {sandbox.id}'
 
             # 3. URL + instruction
             agent_server_url = get_agent_server_url_from_sandbox(sandbox)
