@@ -1,6 +1,5 @@
 """Shared Event router for OpenHands Server."""
 
-import os
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
@@ -14,32 +13,28 @@ from server.sharing.shared_event_service import (
 from openhands.agent_server.models import EventPage, EventSortOrder
 from openhands.app_server.event_callback.event_callback_models import EventKind
 from openhands.sdk import Event
+from openhands.utils.environment import StorageProvider, get_storage_provider
 
 
 def get_shared_event_service_injector() -> SharedEventServiceInjector:
     """Get the appropriate SharedEventServiceInjector based on configuration.
 
-    Set SHARED_EVENT_STORAGE_PROVIDER environment variable to:
-    - "aws" or "s3" for AWS S3
-    - "gcp" or "google_cloud" for Google Cloud Storage (default)
+    Uses get_storage_provider() to determine the storage backend.
+    See openhands.utils.environment for supported environment variables.
 
-    If not set, falls back to FILE_STORE environment variable:
-    - "s3" -> AWS S3
-    - "google_cloud" -> Google Cloud Storage (default)
+    Note: Shared events only support AWS and GCP storage. Filesystem storage
+    falls back to GCP for shared events.
     """
-    provider = os.environ.get('SHARED_EVENT_STORAGE_PROVIDER', '').lower()
+    provider = get_storage_provider()
 
-    # If not explicitly set, fall back to FILE_STORE
-    if not provider:
-        provider = os.environ.get('FILE_STORE', 'google_cloud').lower()
-
-    if provider in ('aws', 's3'):
+    if provider == StorageProvider.AWS:
         from server.sharing.aws_shared_event_service import (
             AwsSharedEventServiceInjector,
         )
 
         return AwsSharedEventServiceInjector()
     else:
+        # GCP is the default for shared events (including filesystem fallback)
         from server.sharing.google_cloud_shared_event_service import (
             GoogleCloudSharedEventServiceInjector,
         )
