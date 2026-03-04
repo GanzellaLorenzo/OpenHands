@@ -893,7 +893,7 @@ class UserStore:
             language='en', enable_proactive_conversation_starters=True
         )
 
-        settings.v1_enabled = DEFAULT_V1_ENABLED
+        default_settings.v1_enabled = DEFAULT_V1_ENABLED
 
         from storage.lite_llm_manager import LiteLlmManager
 
