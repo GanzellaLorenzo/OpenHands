@@ -32,6 +32,7 @@ from slack_sdk.oauth import AuthorizeUrlGenerator
 from slack_sdk.signature import SignatureVerifier
 from slack_sdk.web.async_client import AsyncWebClient
 from sqlalchemy import delete
+from sqlalchemy.exc import SQLAlchemyError
 from storage.database import a_session_maker
 from storage.slack_team_store import SlackTeamStore
 from storage.slack_user import SlackUser
@@ -210,7 +211,7 @@ async def keycloak_callback(
         await token_manager.store_offline_token(
             keycloak_user_id, keycloak_refresh_token
         )
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.error(
             'failed_to_store_offline_token',
             extra={
