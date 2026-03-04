@@ -162,9 +162,7 @@ async def on_conversation_update(
         if analytics and sandbox_info.created_by_user_id:
             from enterprise.storage.user_store import UserStore
 
-            user_obj = await UserStore.get_user_by_id(
-                sandbox_info.created_by_user_id
-            )
+            user_obj = await UserStore.get_user_by_id(sandbox_info.created_by_user_id)
             if user_obj:
                 consented = user_obj.user_consents_to_analytics is True
                 org_id = (
