@@ -63,6 +63,7 @@ pytest-cov = "*"
 pytest-asyncio = "*"
 pytest-forked = "*"
 pytest-xdist = "*"
+pytest-env = "*"
 flake8 = "*"
 openai = "*"
 opencv-python = "*"
@@ -91,6 +92,13 @@ lint.pydocstyle.convention = "google"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+env = [
+  # Required for tests that import server.routes.integration.github
+  # The GitHub module initializes objects at import time that require these values
+  "GITHUB_APP_CLIENT_ID=test-app-id",
+  "GITHUB_APP_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHB7MaJfN2HQVE7aOOKU\n2wxM3YRhk+c4aQQHCZNxwjvQC8/lhAR9fvmpC3UP4F/LzPk5Azscm+Pp3R4gqPkR\nFSl5P1rV3/YC5HQZcUgaE3kHiEPNAJOJpPVbZe4WKPJcE7A3z+lCnQ3mS0Ahvp9U\nSQHRWI7f2vkXJ7wZxkj/nBhj0Hro9VeWKj8h5lsHLvPVGJV8EMbQ3lYlhPkZ1t3F\nvPEOJvz1LFPPRHJN/RI1YJl5rdwvQ7D5E0yEPzA8SXAu2tCc6kPOBIyQyEME8Ljo\nlkCHvTOJNz9Qn4F6j7k9j1H6v2l8+C4pEsafPQIDAQABAoIBABJuJdpXGxbHviGo\nDkNGUJ7L3t5aE7H0sXA8YHv3l/C+HuL5P6P9D5kHDCHq9k/qpPHJLPVRPJPTUEHd\nTBhIV6hvkr8xCl/nG2tQVr6iMJsXflJF9M4qRhJpYJoWCPp8FfK9fljAzfCzYP9B\nAZdXfG3O7kCj9H0hK2p3EDPEDHqScTi9VeJX0rxY6CvjPMRxhCQxgJHhQkZ7G2Cd\nEyQxYmjSe8L+6N0xPvnZk8Mzjvm0E6g8FNdEhw7jqjP0dxVrwW7L7CPtc7P6ytdQ\nQ6t2wd1t3rYCST+FKh0P0nHQ5OKDJP3m0kgJu7S0PY+37N8yNNUgcLPVlP3z6gxj\n5MJ7c4ECgYEA7gVF/RAOVCovGJjT/KSUTQJtKn5pQnHXkDEZRH8hX/MqYh9E1KvP\nEhX/U1HW3G3TY/1kU8cT2hJ7p3p7bj8zP2XXmQ1Y5sxvLHyDN7bJI1TM7PKPm3HB\n0sJz3DEVCET1wg4rC6YixOFjZeluT0MqR8W/VZdHaImbkDULILvnMq0CgYEA4Trm\nTnTRsJCmhS6qJTq8FRBMJp0tKOVkPFORN8m0VkPuq8kJCpkPCXfjZpJ7cQJP0FPQ\nSaMGv+pgtQFr5q8qYPpaFd3u1Yzq8aTfkXInLnbqLDhMpsHqhwP2pFV+NP5Bxlhr\n6iLnXCLeMPJPAJ7fPvz3UOPLt9F5F7p6L1pX1yECgYBIQvP1i2FZAqRb0PjL8c2M\n0LFPREhR0vhBURAJBfB+YCThqU/V7bsvETPIrZVnAPGQ+KS1/P2PHXBdRvPUJ6xA\nz2hwZFJF7gd0TJF8Y8zt5j2+F/KP3WpEIBJmLJPBrPJ+xPwPvP3kF+Q6AzPbN7Yo\nQ5FnHK3PU7TJT4eIkn8xKQKBgQC2xvpPH3k9qJEb0h5WzhW9sQPm2GjT8bL7bKqW\nYz0GxB4YF0hQ0sXPZP5ZQJqD5WjT8z2ptFfVy3xBPOqK0QfKsBQpP9jD0rN7vNFJ\nqYJPEJlvlQPCoEzBV7x1uB1+FhP8hjqyh1PtP0KJhpILQy/LVN4hLwjZNxF1E5l4\nOWe4gQKBgQCfSfJ/OMPJQJ+k3B2sT5kz7cF+O/U0BfP0mK1NP3G0IWlPWL8I1zQT\n+U2W/6VWcT2gPXB8cF0jLk8SU8tqLD0W7+lMqH0P7fS0WHOWQj9qWNV8t3J3QX9E\n+F7xEz6I4LQP1F2m2c1rP4qV8cD5BL2LBLaC0gLQ0A2j1sU+9X9pPQ==\n-----END RSA PRIVATE KEY-----",
+  "GITHUB_APP_WEBHOOK_SECRET=test-webhook-secret",
+]
 
 [tool.coverage.run]
 relative_files = true
