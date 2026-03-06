@@ -381,7 +381,7 @@ class SlackManager(Manager[SlackViewInterface]):
             repo_selection_msg = {
                 'text': 'Choose a Repository:',
                 'blocks': self._generate_repo_selection_form(
-                    user_repos[:99], slack_view.message_ts, slack_view.thread_ts
+                    user_repos, slack_view.message_ts, slack_view.thread_ts
                 ),
             }
             await self.send_message(repo_selection_msg, slack_view, ephemeral=True)
