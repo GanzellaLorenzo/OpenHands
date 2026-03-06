@@ -12,6 +12,7 @@ This module must NOT import from enterprise/. It receives all configuration
 via constructor args.
 """
 
+from datetime import datetime, timezone
 from typing import Any
 
 from posthog import Posthog
@@ -132,6 +133,74 @@ class AnalyticsService:
             self._client.group_identify(**kwargs)
         except Exception:
             logger.exception('AnalyticsService.group_identify failed')
+
+    def identify_user(
+        self,
+        distinct_id: str,
+        consented: bool = True,
+        email: str | None = None,
+        org_id: str | None = None,
+        org_name: str | None = None,
+        idp: str | None = None,
+        orgs: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """Identify a user and their org memberships in PostHog.
+
+        Consolidates the duplicated ``set_person_properties`` +
+        ``group_identify`` pattern from auth.py and oauth_device.py into
+        a single call.
+
+        Consent gate: returns immediately when ``consented=False``.
+        SaaS gate: returns immediately in OSS mode (person profiles are
+        SaaS-only).
+
+        Args:
+            distinct_id: User ID string.
+            consented: Whether user has opted in to analytics.
+            email: User email address.
+            org_id: Current org ID string.
+            org_name: Current org display name.
+            idp: Identity provider (e.g. ``"github"``, ``"google"``).
+            orgs: List of org dicts with keys ``id``, ``name``,
+                  ``member_count`` for group_identify calls.
+        """
+        if not consented:
+            return
+        if self._app_mode != AppMode.SAAS:
+            return
+
+        try:
+            # Person properties
+            self.set_person_properties(
+                distinct_id=distinct_id,
+                properties={
+                    'email': email,
+                    'org_id': org_id,
+                    'org_name': org_name,
+                    'plan_tier': None,
+                    'idp': idp,
+                    'last_login_at': datetime.now(timezone.utc).isoformat(),
+                },
+                consented=consented,
+            )
+
+            # Group identify for each org membership
+            if orgs:
+                for org in orgs:
+                    self.group_identify(
+                        group_type='org',
+                        group_key=org['id'],
+                        properties={
+                            'org_name': org.get('name'),
+                            'plan_tier': None,
+                            'created_at': None,
+                            'member_count': org.get('member_count'),
+                        },
+                        distinct_id=distinct_id,
+                        consented=consented,
+                    )
+        except Exception:
+            logger.exception('AnalyticsService.identify_user failed')
 
     def shutdown(self) -> None:
         """Flush and shut down the PostHog client.
