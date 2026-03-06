@@ -1593,6 +1593,22 @@ files = [
 ]
 
 [[package]]
+name = "croniter"
+version = "6.0.0"
+description = "croniter provides iteration for datetime object with cron like format"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,>=2.6"
+groups = ["main"]
+files = [
+    {file = "croniter-6.0.0-py2.py3-none-any.whl", hash = "sha256:2f878c3856f17896979b2a4379ba1f09c83e374931ea15cc835c5dd2eee9b368"},
+    {file = "croniter-6.0.0.tar.gz", hash = "sha256:37c504b313956114a983ece2c2b07790b1f1094fe9d81cc94739214748255577"},
+]
+
+[package.dependencies]
+python-dateutil = "*"
+pytz = ">2021.1"
+
+[[package]]
 name = "cryptography"
 version = "46.0.5"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
@@ -1932,6 +1948,18 @@ files = [
 
 [package.dependencies]
 scantree = ">=0.0.4"
+
+[[package]]
+name = "diskcache"
+version = "5.6.3"
+description = "Disk Cache -- Disk and file backed persistent cache."
+optional = false
+python-versions = ">=3"
+groups = ["main"]
+files = [
+    {file = "diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19"},
+    {file = "diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc"},
+]
 
 [[package]]
 name = "distlib"
@@ -2328,47 +2356,38 @@ devel = ["colorama", "json-spec", "jsonschema", "pylint", "pytest", "pytest-benc
 
 [[package]]
 name = "fastmcp"
-version = "3.1.0"
+version = "2.14.3"
 description = "The fast, Pythonic way to build MCP servers and clients."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "fastmcp-3.1.0-py3-none-any.whl", hash = "sha256:b1f73b56fd3b0cb2bd9e2a144fc650d5cc31587ed129d996db7710e464ae8010"},
-    {file = "fastmcp-3.1.0.tar.gz", hash = "sha256:e25264794c734b9977502a51466961eeecff92a0c2f3b49c40c070993628d6d0"},
+    {file = "fastmcp-2.14.3-py3-none-any.whl", hash = "sha256:103c6b4c6e97a9acc251c81d303f110fe4f2bdba31353df515d66272bf1b9414"},
+    {file = "fastmcp-2.14.3.tar.gz", hash = "sha256:abc9113d5fcf79dfb4c060a1e1c55fccb0d4bce4a2e3eab15ca352341eec8dd6"},
 ]
 
 [package.dependencies]
 authlib = ">=1.6.5"
 cyclopts = ">=4.0.0"
 exceptiongroup = ">=1.2.2"
-httpx = ">=0.28.1,<1.0"
-jsonref = ">=1.1.0"
+httpx = ">=0.28.1"
 jsonschema-path = ">=0.3.4"
 mcp = ">=1.24.0,<2.0"
 openapi-pydantic = ">=0.5.1"
-opentelemetry-api = ">=1.20.0"
-packaging = ">=24.0"
 platformdirs = ">=4.0.0"
-py-key-value-aio = {version = ">=0.4.4,<0.5.0", extras = ["filetree", "keyring", "memory"]}
+py-key-value-aio = {version = ">=0.3.0,<0.4.0", extras = ["disk", "keyring", "memory"]}
 pydantic = {version = ">=2.11.7", extras = ["email"]}
+pydocket = ">=0.16.6"
 pyperclip = ">=1.9.0"
 python-dotenv = ">=1.1.0"
 pyyaml = ">=6.0,<7.0"
 rich = ">=13.9.4"
-uncalled-for = ">=0.2.0"
 uvicorn = ">=0.35"
-watchfiles = ">=1.0.0"
 websockets = ">=15.0.1"
 
 [package.extras]
 anthropic = ["anthropic (>=0.40.0)"]
-apps = ["prefab-ui (>=0.6.0)"]
-azure = ["azure-identity (>=1.16.0)"]
-code-mode = ["pydantic-monty (>=0.0.7)"]
-gemini = ["google-genai (>=1.18.0)"]
 openai = ["openai (>=1.102.0)"]
-tasks = ["pydocket (>=0.18.0)"]
 
 [[package]]
 name = "fastuuid"
@@ -6892,6 +6911,23 @@ files = [
 ]
 
 [[package]]
+name = "pathvalidate"
+version = "3.3.1"
+description = "pathvalidate is a Python library to sanitize/validate a string such as filenames/file-paths/etc."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "pathvalidate-3.3.1-py3-none-any.whl", hash = "sha256:5263baab691f8e1af96092fa5137ee17df5bdfbd6cff1fcac4d6ef4bc2e1735f"},
+    {file = "pathvalidate-3.3.1.tar.gz", hash = "sha256:b18c07212bfead624345bb8e1d6141cdcf15a39736994ea0b94035ad2b1ba177"},
+]
+
+[package.extras]
+docs = ["Sphinx (>=2.4)", "sphinx_rtd_theme (>=1.2.2)", "urllib3 (<2)"]
+readme = ["path (>=13,<18)", "readmemaker (>=1.2.0)"]
+test = ["Faker (>=1.0.8)", "allpairspy (>=2)", "click (>=6.2)", "pytest (>=6.0.1)", "pytest-md-report (>=0.6.2)"]
+
+[[package]]
 name = "pbs-installer"
 version = "2025.12.17"
 description = "Installer for Python Build Standalone"
@@ -7558,47 +7594,58 @@ files = [
 
 [[package]]
 name = "py-key-value-aio"
-version = "0.4.4"
-description = "Async Key-Value Store - A pluggable interface for KV Stores"
+version = "0.3.0"
+description = "Async Key-Value"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "py_key_value_aio-0.4.4-py3-none-any.whl", hash = "sha256:18e17564ecae61b987f909fc2cd41ee2012c84b4b1dcb8c055cf8b4bc1bf3f5d"},
-    {file = "py_key_value_aio-0.4.4.tar.gz", hash = "sha256:e3012e6243ed7cc09bb05457bd4d03b1ba5c2b1ca8700096b3927db79ffbbe55"},
+    {file = "py_key_value_aio-0.3.0-py3-none-any.whl", hash = "sha256:1c781915766078bfd608daa769fefb97e65d1d73746a3dfb640460e322071b64"},
+    {file = "py_key_value_aio-0.3.0.tar.gz", hash = "sha256:858e852fcf6d696d231266da66042d3355a7f9871650415feef9fca7a6cd4155"},
 ]
 
 [package.dependencies]
-aiofile = {version = ">=3.5.0", optional = true, markers = "extra == \"filetree\""}
-anyio = {version = ">=4.4.0", optional = true, markers = "extra == \"filetree\""}
 beartype = ">=0.20.0"
 cachetools = {version = ">=5.0.0", optional = true, markers = "extra == \"memory\""}
+diskcache = {version = ">=5.0.0", optional = true, markers = "extra == \"disk\""}
 keyring = {version = ">=25.6.0", optional = true, markers = "extra == \"keyring\""}
-typing-extensions = ">=4.15.0"
+pathvalidate = {version = ">=3.3.1", optional = true, markers = "extra == \"disk\""}
+py-key-value-shared = "0.3.0"
+redis = {version = ">=4.3.0", optional = true, markers = "extra == \"redis\""}
 
 [package.extras]
-aerospike = ["aerospike (>=16.0.0)"]
 disk = ["diskcache (>=5.0.0)", "pathvalidate (>=3.3.1)"]
-docs = ["mkdocs (>=1.6.0)", "mkdocs-material (>=9.5.0)", "mkdocstrings-python (>=1.10.0)", "mkdocstrings[python] (>=0.30.0)"]
 duckdb = ["duckdb (>=1.1.1)", "pytz (>=2025.2)"]
 dynamodb = ["aioboto3 (>=13.3.0)", "types-aiobotocore-dynamodb (>=2.16.0)"]
 elasticsearch = ["aiohttp (>=3.12)", "elasticsearch (>=8.0.0)"]
 filetree = ["aiofile (>=3.5.0)", "anyio (>=4.4.0)"]
-firestore = ["google-auth (>=2.24.0)", "google-cloud-firestore (>=2.13.0)"]
 keyring = ["keyring (>=25.6.0)"]
 keyring-linux = ["dbus-python (>=1.4.0)", "keyring (>=25.6.0)"]
 memcached = ["aiomcache (>=0.8.0)"]
 memory = ["cachetools (>=5.0.0)"]
 mongodb = ["pymongo (>=4.0.0)"]
-opensearch = ["opensearch-py[async] (>=2.0.0)"]
-postgresql = ["asyncpg (>=0.30.0)"]
 pydantic = ["pydantic (>=2.11.9)"]
 redis = ["redis (>=4.3.0)"]
 rocksdb = ["rocksdict (>=0.3.2) ; python_full_version < \"3.12.0\"", "rocksdict (>=0.3.24) ; python_full_version >= \"3.12.0\""]
-s3 = ["aioboto3 (>=13.3.0)", "types-aiobotocore-s3 (>=2.16.0)"]
 valkey = ["valkey-glide (>=2.1.0)"]
 vault = ["hvac (>=2.3.0)", "types-hvac (>=2.3.0)"]
 wrappers-encryption = ["cryptography (>=45.0.0)"]
+
+[[package]]
+name = "py-key-value-shared"
+version = "0.3.0"
+description = "Shared Key-Value"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "py_key_value_shared-0.3.0-py3-none-any.whl", hash = "sha256:5b0efba7ebca08bb158b1e93afc2f07d30b8f40c2fc12ce24a4c0d84f42f9298"},
+    {file = "py_key_value_shared-0.3.0.tar.gz", hash = "sha256:8fdd786cf96c3e900102945f92aa1473138ebe960ef49da1c833790160c28a4b"},
+]
+
+[package.dependencies]
+beartype = ">=0.20.0"
+typing-extensions = ">=4.15.0"
 
 [[package]]
 name = "pyasn1"
@@ -7843,6 +7890,36 @@ azure-key-vault = ["azure-identity (>=1.16.0)", "azure-keyvault-secrets (>=4.8.0
 gcp-secret-manager = ["google-cloud-secret-manager (>=2.23.1)"]
 toml = ["tomli (>=2.0.1)"]
 yaml = ["pyyaml (>=6.0.1)"]
+
+[[package]]
+name = "pydocket"
+version = "0.18.1"
+description = "A distributed background task system for Python functions"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "pydocket-0.18.1-py3-none-any.whl", hash = "sha256:cbb0ff262a0ffc746c60d8d643d975efcb99bd0abf4998d0b31375a06b6353c3"},
+    {file = "pydocket-0.18.1.tar.gz", hash = "sha256:7c9410c68c9cc4171e3718f4b691dbae0ed1fc5b108adbcf8f30a915fc645d28"},
+]
+
+[package.dependencies]
+cloudpickle = ">=3.1.1"
+croniter = ">=6"
+fakeredis = {version = ">=2.32.1", extras = ["lua"]}
+opentelemetry-api = ">=1.33.0"
+prometheus-client = ">=0.21.1"
+py-key-value-aio = {version = ">=0.3.0", extras = ["memory", "redis"]}
+python-json-logger = ">=2.0.7"
+redis = ">=5"
+rich = ">=13.9.4"
+typer = ">=0.15.1"
+typing-extensions = ">=4.12.0"
+tzdata = {version = ">=2025.2", markers = "sys_platform == \"win32\""}
+uncalled-for = ">=0.2.0"
+
+[package.extras]
+metrics = ["opentelemetry-sdk (>=1.33.0)"]
 
 [[package]]
 name = "pydub"
@@ -13782,10 +13859,9 @@ files = [
 name = "typer"
 version = "0.21.1"
 description = "Typer, build great CLIs. Easy to code. Based on Python type hints."
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"third-party-runtimes\""
 files = [
     {file = "typer-0.21.1-py3-none-any.whl", hash = "sha256:7985e89081c636b88d172c2ee0cfe33c253160994d47bdfdc302defd7d1f1d01"},
     {file = "typer-0.21.1.tar.gz", hash = "sha256:ea835607cd752343b6b2b7ce676893e5a0324082268b48f27aa058bdb7d2145d"},
@@ -14848,4 +14924,4 @@ third-party-runtimes = ["daytona", "e2b-code-interpreter", "modal", "runloop-api
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12,<3.14"
-content-hash = "7319bfec87aed5ed2803ad7cb947f875e83fa62216b1662a87b9b84078dc03e4"
+content-hash = "5ebb505a7307a3865a4151b9f74fc3fd2a29e3d41e80aca59d8fec6648910855"
