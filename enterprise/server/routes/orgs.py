@@ -1004,16 +1004,18 @@ async def switch_org(
         analytics = get_analytics_service()
         if analytics:
             try:
-                user = await UserStore.get_user_by_id(user_id)
-                consented = user.user_consents_to_analytics is True if user else False
+                from openhands.analytics import resolve_context
+
+                ctx = await resolve_context(user_id)
+
                 analytics.set_person_properties(
                     distinct_id=user_id,
                     properties={
                         'org_id': str(org_id),
                         'org_name': org.name,
-                        'plan_tier': None,  # plan_tier not yet on Org model — deferred to future phase
+                        'plan_tier': None,  # plan_tier not yet on Org model
                     },
-                    consented=consented,
+                    consented=ctx.consented,
                 )
             except Exception:
                 logger.exception(

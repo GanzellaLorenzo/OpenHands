@@ -20,7 +20,7 @@ from storage.org import Org
 from storage.subscription_access import SubscriptionAccess
 from storage.user_store import UserStore
 
-from openhands.analytics import analytics_constants, get_analytics_service
+from openhands.analytics import get_analytics_service
 from openhands.app_server.config import get_global_config
 from openhands.server.user_auth import get_user_id
 
@@ -302,17 +302,12 @@ async def success_callback(session_id: str, request: Request):
         try:
             analytics = get_analytics_service()
             if analytics and user:
-                consented = (
-                    user.user_consents_to_analytics is True
-                )  # None = undecided = not consented
-                analytics.capture(
+                consented = user.user_consents_to_analytics is True
+                analytics.track_credit_purchased(
                     distinct_id=billing_session.user_id,
-                    event=analytics_constants.CREDIT_PURCHASED,
-                    properties={
-                        'amount_usd': add_credits,
-                        'credit_balance_before': max_budget,
-                        'credit_balance_after': new_max_budget,
-                    },
+                    amount_usd=add_credits,
+                    credit_balance_before=max_budget,
+                    credit_balance_after=new_max_budget,
                     org_id=str(user.current_org_id) if user.current_org_id else None,
                     consented=consented,
                 )

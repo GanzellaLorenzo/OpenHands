@@ -32,42 +32,34 @@ async def submit_onboarding(
     """Submit onboarding form selections and fire analytics event."""
     # ACTV-03: onboarding completed
     try:
-        from openhands.analytics import analytics_constants, get_analytics_service
+        from openhands.analytics import get_analytics_service, resolve_context
 
         analytics = get_analytics_service()
         if analytics and user_id:
-            from enterprise.storage.user_store import UserStore
+            ctx = await resolve_context(user_id)
 
-            user_obj = await UserStore.get_user_by_id(user_id)
-            if user_obj:
-                consented = user_obj.user_consents_to_analytics is True
-                org_id_str = (
-                    str(user_obj.current_org_id) if user_obj.current_org_id else None
-                )
-                analytics.capture(
-                    distinct_id=user_id,
-                    event=analytics_constants.ONBOARDING_COMPLETED,
+            analytics.track_onboarding_completed(
+                distinct_id=user_id,
+                role=body.selections.get('step1'),
+                org_size=body.selections.get('step2'),
+                use_case=body.selections.get('step3'),
+                org_id=ctx.org_id,
+                consented=ctx.consented,
+            )
+
+            # Associate onboarding timestamp with org group
+            if ctx.org_id:
+                analytics.group_identify(
+                    group_type='org',
+                    group_key=ctx.org_id,
                     properties={
-                        'role': body.selections.get('step1'),
-                        'org_size': body.selections.get('step2'),
-                        'use_case': body.selections.get('step3'),
+                        'onboarding_completed_at': datetime.now(
+                            timezone.utc
+                        ).isoformat(),
                     },
-                    org_id=org_id_str,
-                    consented=consented,
+                    distinct_id=user_id,
+                    consented=ctx.consented,
                 )
-                # Associate onboarding timestamp with org group
-                if org_id_str:
-                    analytics.group_identify(
-                        group_type='org',
-                        group_key=org_id_str,
-                        properties={
-                            'onboarding_completed_at': datetime.now(
-                                timezone.utc
-                            ).isoformat(),
-                        },
-                        distinct_id=user_id,
-                        consented=consented,
-                    )
     except Exception:
         import logging
 
