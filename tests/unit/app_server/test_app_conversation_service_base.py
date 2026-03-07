@@ -24,10 +24,14 @@ class MockUserInfo:
     """Mock class for UserInfo to simulate user settings."""
 
     def __init__(
-        self, git_user_name: str | None = None, git_user_email: str | None = None
+        self,
+        git_user_name: str | None = None,
+        git_user_email: str | None = None,
+        marketplace_path: str | None = None,
     ):
         self.git_user_name = git_user_name
         self.git_user_email = git_user_email
+        self.marketplace_path = marketplace_path
 
 
 class MockCommandResult:
@@ -1007,6 +1011,11 @@ class TestLoadAndMergeAllSkills:
         """Test successfully loading skills from agent-server."""
         # Arrange
         mock_user_context = Mock(spec=UserContext)
+        mock_user_context.get_user_info = AsyncMock(
+            return_value=MockUserInfo(
+                marketplace_path='marketplaces/custom.json'
+            )
+        )
         with patch.object(AppConversationServiceBase, '__abstractmethods__', set()):
             service = AppConversationServiceBase(
                 init_git_in_empty_workspace=True, user_context=mock_user_context
@@ -1047,6 +1056,7 @@ class TestLoadAndMergeAllSkills:
             assert call_kwargs['agent_server_url'] == 'http://localhost:8000'
             assert call_kwargs['session_api_key'] == 'test-api-key'
             assert call_kwargs['project_dir'] == '/workspace/repo'
+            assert call_kwargs['marketplace_path'] == 'marketplaces/custom.json'
 
     @pytest.mark.asyncio
     @patch(
@@ -1098,6 +1108,7 @@ class TestLoadAndMergeAllSkills:
         """Test uses working_dir as project_dir when no repository is selected."""
         # Arrange
         mock_user_context = Mock(spec=UserContext)
+        mock_user_context.get_user_info = AsyncMock(return_value=MockUserInfo())
         with patch.object(AppConversationServiceBase, '__abstractmethods__', set()):
             service = AppConversationServiceBase(
                 init_git_in_empty_workspace=True, user_context=mock_user_context
@@ -1125,6 +1136,7 @@ class TestLoadAndMergeAllSkills:
             # Assert
             call_kwargs = mock_load_skills.call_args[1]
             assert call_kwargs['project_dir'] == '/workspace'
+            assert call_kwargs['marketplace_path'] is None
 
     @pytest.mark.asyncio
     @patch(

@@ -7247,7 +7247,7 @@
     "es": "Actualmente no hay un plan para este repositorio",
     "tr": "Şu anda bu depo için bir plan yok"
   },
-    "SIDEBAR$NAVIGATION_LABEL": {
+  "SIDEBAR$NAVIGATION_LABEL": {
     "en": "Sidebar navigation",
     "zh-CN": "侧边栏导航",
     "zh-TW": "側邊欄導航",
@@ -9183,7 +9183,6 @@
     "de": "Abonnement kündigen",
     "uk": "Скасувати підписку"
   },
-
   "PAYMENT$SUBSCRIPTION_CANCELLED": {
     "en": "Subscription cancelled successfully",
     "ja": "サブスクリプションが正常にキャンセルされました",
@@ -9200,7 +9199,6 @@
     "de": "Abonnement erfolgreich gekündigt",
     "uk": "Підписку успішно скасовано"
   },
-
   "PAYMENT$NEXT_BILLING_DATE": {
     "en": "Next billing date: {{date}}",
     "ja": "次回請求日: {{date}}",
@@ -11569,7 +11567,6 @@
     "tr": "Git sağlayıcısını bağla",
     "uk": "Підключити постачальник Git"
   },
-
   "TASKS$NO_GIT_PROVIDERS_DESCRIPTION": {
     "en": "Connect a Git provider to see suggested tasks from your repositories.",
     "ja": "Gitプロバイダーを接続して、リポジトリからの提案タスクを表示します。",
@@ -11586,7 +11583,6 @@
     "tr": "Depolarınızdan önerilen görevleri görmek için bir Git sağlayıcısı bağlayın.",
     "uk": "Підключіть постачальник Git, щоб бачити запропоновані завдання з ваших репозиторіїв."
   },
-
   "TASKS$NO_GIT_PROVIDERS_CTA": {
     "en": "Go to Integrations",
     "ja": "統合へ移動",
@@ -13140,7 +13136,7 @@
     "uk": "Шлях до маркетплейсу"
   },
   "SETTINGS$MARKETPLACE_PATH_DESCRIPTION": {
-    "en": "Path to the marketplace JSON file that defines which skills are loaded. Supports formats: 'marketplaces/default.json' (default repo) or 'owner/repo:path/to/marketplace.json' (custom repo with cross-repo skill loading). Leave empty to load all skills without filtering.",
+    "en": "Relative path to the marketplace JSON file in the public skills repository, for example 'marketplaces/default.json'. Leave empty to load all skills without filtering.",
     "ja": "読み込むスキルを定義するマーケットプレイスJSONファイルへのパス。形式: 'marketplaces/default.json'（デフォルトリポジトリ）または'owner/repo:path/to/marketplace.json'（クロスリポジトリスキル読み込み）。フィルタリングなしですべてのスキルを読み込むには空白のままにしてください。",
     "zh-CN": "定义加载哪些技能的市场JSON文件路径。支持格式：'marketplaces/default.json'（默认仓库）或'owner/repo:path/to/marketplace.json'（跨仓库技能加载）。留空以加载所有技能而不进行过滤。",
     "zh-TW": "定義載入哪些技能的市場JSON檔案路徑。支援格式：'marketplaces/default.json'（預設倉庫）或'owner/repo:path/to/marketplace.json'（跨倉庫技能載入）。留空以載入所有技能而不進行過濾。",
@@ -13156,7 +13152,7 @@
     "uk": "Шлях до JSON-файлу маркетплейсу, який визначає, які навички завантажуються. Підтримує формати: 'marketplaces/default.json' (репозиторій за замовчуванням) або 'owner/repo:path/to/marketplace.json' (користувацький репозиторій із завантаженням навичок з інших репозиторіїв). Залиште порожнім, щоб завантажити всі навички без фільтрації."
   },
   "SETTINGS$MARKETPLACE_PATH_INVALID": {
-    "en": "Invalid marketplace path format. Use 'path/to/file.json' or 'owner/repo:path/to/file.json'.",
+    "en": "Invalid marketplace path format. Use a relative JSON path like 'marketplaces/default.json'.",
     "ja": "無効なマーケットプレイスパス形式です。'path/to/file.json'または'owner/repo:path/to/file.json'を使用してください。",
     "zh-CN": "无效的市场路径格式。请使用 'path/to/file.json' 或 'owner/repo:path/to/file.json'。",
     "zh-TW": "無效的市場路徑格式。請使用 'path/to/file.json' 或 'owner/repo:path/to/file.json'。",

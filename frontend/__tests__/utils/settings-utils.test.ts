@@ -112,30 +112,27 @@ describe("isValidMarketplacePath", () => {
     expect(isValidMarketplacePath("my_marketplace.json")).toBe(true);
   });
 
-  it("should return true for valid cross-repo paths", () => {
-    expect(
-      isValidMarketplacePath("owner/repo:path/to/marketplace.json"),
-    ).toBe(true);
-    expect(isValidMarketplacePath("OpenHands/skills:custom.json")).toBe(true);
-    expect(
-      isValidMarketplacePath("my-org/my-repo:marketplaces/default.json"),
-    ).toBe(true);
-  });
-
   it("should return false for invalid paths", () => {
     // Path traversal attempts
     expect(isValidMarketplacePath("../../../etc/passwd")).toBe(false);
     expect(isValidMarketplacePath("../secret.json")).toBe(false);
+    expect(isValidMarketplacePath("marketplaces/%2e%2e/secret.json")).toBe(
+      false,
+    );
+
+    // Unsupported absolute or cross-repo paths
+    expect(isValidMarketplacePath("/marketplaces/default.json")).toBe(false);
+    expect(isValidMarketplacePath("owner/repo:path/to/marketplace.json")).toBe(
+      false,
+    );
 
     // Missing .json extension
     expect(isValidMarketplacePath("marketplaces/default")).toBe(false);
-    expect(isValidMarketplacePath("owner/repo:path/file")).toBe(false);
 
     // Invalid characters
     expect(isValidMarketplacePath("path/to/file.json?query=1")).toBe(false);
     expect(isValidMarketplacePath("path with spaces.json")).toBe(false);
-
-    // Invalid cross-repo format
+    expect(isValidMarketplacePath("marketplaces\\default.json")).toBe(false);
     expect(isValidMarketplacePath("owner:path.json")).toBe(false);
     expect(isValidMarketplacePath(":path/file.json")).toBe(false);
   });

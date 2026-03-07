@@ -96,6 +96,15 @@ class AppConversationServiceBase(AppConversationService, ABC):
             # Build sandbox config (exposed URLs)
             sandbox_config = build_sandbox_config(sandbox)
 
+            marketplace_path = None
+            try:
+                user_info = await self.user_context.get_user_info()
+                marketplace_path = user_info.marketplace_path
+            except Exception as e:
+                _logger.warning(
+                    f'Failed to load marketplace_path from user settings: {e}'
+                )
+
             # Determine project directory for project skills
             project_dir = working_dir
             if selected_repository:
@@ -113,6 +122,7 @@ class AppConversationServiceBase(AppConversationService, ABC):
                 load_user=True,
                 load_project=True,
                 load_org=True,
+                marketplace_path=marketplace_path,
             )
 
             _logger.info(
@@ -185,6 +195,7 @@ class AppConversationServiceBase(AppConversationService, ABC):
         """Load all skills and update agent with them.
 
         Args:
+            sandbox: Sandbox information, including the agent-server session key
             agent: The agent to update
             remote_workspace: AsyncRemoteWorkspace for loading repo skills
             selected_repository: Repository name or None

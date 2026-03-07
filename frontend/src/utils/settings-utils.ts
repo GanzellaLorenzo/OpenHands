@@ -68,15 +68,10 @@ export const parseMaxBudgetPerTask = (value: string): number | null => {
 };
 
 /**
- * Regex patterns for validating marketplace_path.
- * Supports two formats:
- * 1. Simple path: "marketplaces/default.json" or "path/to/file.json"
- * 2. Cross-repo path: "owner/repo:path/to/marketplace.json"
+ * Regex pattern for validating marketplace_path.
+ * Only relative JSON paths within the public skills repository are supported.
  */
-const MARKETPLACE_PATH_SIMPLE_PATTERN =
-  /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_.-]+)*\.json$/;
-const MARKETPLACE_PATH_CROSS_REPO_PATTERN =
-  /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+:[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_.-]+)*\.json$/;
+const MARKETPLACE_PATH_PATTERN = /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_.-]+)*\.json$/;
 
 /**
  * Validates a marketplace path value.
@@ -91,20 +86,17 @@ export const isValidMarketplacePath = (value: string): boolean => {
 
   const trimmedValue = value.trim();
 
-  // Security: Block path traversal and absolute paths
+  // Security: block path traversal, absolute paths, and unsupported path formats
   if (
     trimmedValue.startsWith("/") ||
+    trimmedValue.includes(":") ||
     trimmedValue.includes("..") ||
     trimmedValue.includes("\\")
   ) {
     return false;
   }
 
-  // Check against both patterns
-  return (
-    MARKETPLACE_PATH_SIMPLE_PATTERN.test(trimmedValue) ||
-    MARKETPLACE_PATH_CROSS_REPO_PATTERN.test(trimmedValue)
-  );
+  return MARKETPLACE_PATH_PATTERN.test(trimmedValue);
 };
 
 /**

@@ -2,9 +2,6 @@ import { Settings } from "#/types/settings";
 
 export const LATEST_SETTINGS_VERSION = 5;
 
-// Placeholder shown in the UI for marketplace path input
-export const MARKETPLACE_PATH_PLACEHOLDER = "marketplaces/default.json";
-
 export const DEFAULT_SETTINGS: Settings = {
   llm_model: "openhands/claude-opus-4-5-20251101",
   llm_base_url: "",
