@@ -5,7 +5,7 @@ import json
 import os
 import zipfile
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -36,12 +36,16 @@ from openhands.app_server.user.user_context import UserContext
 from openhands.integrations.provider import ProviderToken, ProviderType
 from openhands.integrations.service_types import SuggestedTask, TaskType
 from openhands.sdk import Agent, Event
+from openhands.sdk.critic.impl.api import APIBasedCritic
 from openhands.sdk.llm import LLM
 from openhands.sdk.secret import LookupSecret, StaticSecret
+from openhands.sdk.settings import AgentSettings
 from openhands.sdk.workspace import LocalWorkspace
 from openhands.sdk.workspace.remote.async_remote_workspace import AsyncRemoteWorkspace
 from openhands.server.types import AppMode
 from openhands.storage.data_models.conversation_metadata import ConversationTrigger
+from openhands.storage.data_models.settings import Settings
+
 
 # Env var used by openhands SDK LLM to skip context-window validation (e.g. for gpt-4 in tests)
 _ALLOW_SHORT_CONTEXT_WINDOWS = 'ALLOW_SHORT_CONTEXT_WINDOWS'
@@ -110,11 +114,24 @@ class TestLiveStatusAppConversationService:
         self.mock_user.condenser_max_size = None  # Default to None
         self.mock_user.llm_base_url = 'https://api.openai.com/v1'
         self.mock_user.mcp_config = None  # Default to None to avoid error handling path
+        self.mock_user.sdk_settings_values = {}
+        self.mock_user.to_agent_settings = Mock(side_effect=self._mock_user_to_agent_settings)
 
         # Mock sandbox
         self.mock_sandbox = Mock(spec=SandboxInfo)
         self.mock_sandbox.id = uuid4()
         self.mock_sandbox.status = SandboxStatus.RUNNING
+
+    def _mock_user_to_agent_settings(self) -> AgentSettings:
+        return Settings(
+            llm_model=self.mock_user.llm_model,
+            llm_api_key=self.mock_user.llm_api_key,
+            llm_base_url=self.mock_user.llm_base_url,
+            enable_default_condenser=True,
+            condenser_max_size=self.mock_user.condenser_max_size,
+            sdk_settings_values=dict(self.mock_user.sdk_settings_values),
+        ).to_agent_settings()
+
 
     def test_apply_suggested_task_sets_prompt_and_trigger(self):
         """Test suggested task prompts populate initial message and trigger."""
@@ -480,6 +497,24 @@ class TestLiveStatusAppConversationService:
             mcp_config['mcpServers']['default']['headers']['X-Session-API-Key']
             == 'mcp_api_key'
         )
+
+    @pytest.mark.asyncio
+    async def test_configure_llm_and_mcp_uses_sdk_agent_settings(self):
+        """SDK AgentSettings values should drive the configured LLM."""
+        self.mock_user.sdk_settings_values = {
+            'llm.model': 'sdk-model',
+            'llm.base_url': 'https://sdk-llm.example.com',
+            'llm.timeout': 123,
+            'llm.max_input_tokens': 456,
+        }
+        self.mock_user_context.get_mcp_api_key.return_value = None
+
+        llm, _ = await self.service._configure_llm_and_mcp(self.mock_user, None)
+
+        assert llm.model == 'sdk-model'
+        assert llm.base_url == 'https://sdk-llm.example.com'
+        assert llm.timeout == 123
+        assert llm.max_input_tokens == 456
 
     @pytest.mark.asyncio
     async def test_configure_llm_and_mcp_openhands_model_prefers_user_base_url(self):
@@ -902,6 +937,44 @@ class TestLiveStatusAppConversationService:
                 mock_llm, AgentType.DEFAULT, self.mock_user.condenser_max_size
             )
 
+
+    @patch(
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools',
+        return_value=[],
+    )
+    def test_create_agent_with_context_applies_sdk_agent_settings(self, _mock_get_tools):
+        """Resolved SDK AgentSettings should affect V1 agent startup."""
+        llm = LLM(
+            model='openhands/default',
+            base_url='https://llm-proxy.app.all-hands.dev',
+            api_key=SecretStr('test_api_key'),
+        )
+        agent_settings = AgentSettings.model_validate(
+            {
+                'llm': {
+                    'model': 'openhands/default',
+                    'base_url': 'https://llm-proxy.app.all-hands.dev',
+                    'api_key': 'test_api_key',
+                },
+                'condenser': {'enabled': False},
+                'critic': {'enabled': True, 'mode': 'all_actions'},
+            }
+        )
+
+        agent = self.service._create_agent_with_context(
+            llm,
+            AgentType.DEFAULT,
+            None,
+            {},
+            condenser_max_size=None,
+            agent_settings=agent_settings,
+        )
+
+        assert agent.condenser is None
+        assert isinstance(agent.critic, APIBasedCritic)
+        assert agent.critic.mode == 'all_actions'
+
+
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_planning_tools'
     )
@@ -1171,6 +1244,7 @@ class TestLiveStatusAppConversationService:
         self.service._configure_llm_and_mcp = AsyncMock(
             return_value=(mock_llm, mock_mcp_config)
         )
+        self.service._get_agent_settings = Mock(return_value=Mock(spec=AgentSettings))
         self.service._create_agent_with_context = Mock(return_value=mock_agent)
         self.service._finalize_conversation_request = AsyncMock(
             return_value=mock_final_request
@@ -1199,6 +1273,7 @@ class TestLiveStatusAppConversationService:
         self.service._configure_llm_and_mcp.assert_called_once_with(
             self.mock_user, 'gpt-4'
         )
+        self.service._get_agent_settings.assert_called_once_with(self.mock_user, 'gpt-4')
         self.service._create_agent_with_context.assert_called_once_with(
             mock_llm,
             AgentType.DEFAULT,
@@ -1208,6 +1283,7 @@ class TestLiveStatusAppConversationService:
             secrets=mock_secrets,
             git_provider=ProviderType.GITHUB,
             working_dir='/test/dir',
+            agent_settings=ANY,
         )
         self.service._finalize_conversation_request.assert_called_once()
 
@@ -2039,11 +2115,26 @@ class TestPluginHandling:
         self.mock_user.condenser_max_size = None
         self.mock_user.mcp_config = None
         self.mock_user.security_analyzer = None
+        self.mock_user.sdk_settings_values = {}
+        self.mock_user.to_agent_settings = Mock(
+            side_effect=self._mock_user_to_agent_settings
+        )
 
         # Mock sandbox
         self.mock_sandbox = Mock(spec=SandboxInfo)
         self.mock_sandbox.id = uuid4()
         self.mock_sandbox.status = SandboxStatus.RUNNING
+
+
+    def _mock_user_to_agent_settings(self) -> AgentSettings:
+        return Settings(
+            llm_model=self.mock_user.llm_model,
+            llm_api_key=self.mock_user.llm_api_key,
+            llm_base_url=self.mock_user.llm_base_url,
+            enable_default_condenser=True,
+            condenser_max_size=self.mock_user.condenser_max_size,
+            sdk_settings_values=dict(self.mock_user.sdk_settings_values),
+        ).to_agent_settings()
 
     def test_construct_initial_message_with_plugin_params_no_plugins(self):
         """Test _construct_initial_message_with_plugin_params with no plugins returns original message."""

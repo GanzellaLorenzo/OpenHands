@@ -30,7 +30,7 @@ from openhands.server.user_auth import (
     get_user_settings,
     get_user_settings_store,
 )
-from openhands.storage.data_models.settings import Settings
+from openhands.storage.data_models.settings import SDK_LEGACY_FIELD_MAP, Settings
 from openhands.storage.secrets.secrets_store import SecretsStore
 from openhands.storage.settings.settings_store import SettingsStore
 from openhands.utils.llm import get_provider_api_base, is_openhands_model
@@ -39,14 +39,13 @@ LITE_LLM_API_URL = os.environ.get(
     'LITE_LLM_API_URL', 'https://llm-proxy.app.all-hands.dev'
 )
 
-
 def _get_sdk_settings_schema() -> dict[str, Any] | None:
     try:
         settings_module = importlib.import_module('openhands.sdk.settings')
     except ModuleNotFoundError:
         return None
 
-    return settings_module.SDKSettings.export_schema().model_dump(mode='json')
+    return settings_module.AgentSettings.export_schema().model_dump(mode='json')
 
 
 def _get_sdk_field_keys(schema: dict[str, Any] | None) -> set[str]:
@@ -84,10 +83,12 @@ def _extract_sdk_settings_values(
             continue
         if field_key in values:
             continue
-        if field_key not in Settings.model_fields:
+
+        legacy_field = SDK_LEGACY_FIELD_MAP.get(field_key)
+        if legacy_field is None or legacy_field not in Settings.model_fields:
             continue
 
-        values[field_key] = getattr(settings, field_key)
+        values[field_key] = getattr(settings, legacy_field)
 
     return values
 
@@ -104,8 +105,12 @@ def _apply_settings_payload(
     sdk_settings_values = dict(settings.sdk_settings_values)
 
     for key, value in payload.items():
+        legacy_field = SDK_LEGACY_FIELD_MAP.get(key)
         if key in Settings.model_fields:
             setattr(settings, key, value)
+        elif legacy_field in Settings.model_fields:
+            setattr(settings, legacy_field, value)
+
         if key in sdk_field_keys and key not in secret_field_keys:
             sdk_settings_values[key] = value
 
@@ -177,7 +182,7 @@ async def load_settings(
         ):
             settings_with_token_data.llm_base_url = None
 
-        settings_with_token_data.sdk_settings_values['llm_base_url'] = (
+        settings_with_token_data.sdk_settings_values['llm.base_url'] = (
             settings_with_token_data.llm_base_url
         )
 

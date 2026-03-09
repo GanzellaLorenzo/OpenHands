@@ -106,6 +106,34 @@ def test_settings_preserve_sdk_settings_values():
     }
 
 
+
+def test_settings_to_agent_settings_prefers_sdk_values_and_legacy_fallbacks():
+    settings = Settings(
+        llm_model='legacy-model',
+        llm_api_key='legacy-key',
+        llm_base_url='https://legacy.example.com',
+        enable_default_condenser=True,
+        condenser_max_size=88,
+        sdk_settings_values={
+            'llm.model': 'sdk-model',
+            'condenser.enabled': False,
+            'critic.enabled': True,
+            'critic.mode': 'all_actions',
+        },
+    )
+
+    agent_settings = settings.to_agent_settings()
+
+    assert agent_settings.llm.model == 'sdk-model'
+    assert agent_settings.llm.api_key.get_secret_value() == 'legacy-key'
+    assert agent_settings.llm.base_url == 'https://legacy.example.com'
+    assert agent_settings.condenser.enabled is False
+    assert agent_settings.condenser.max_size == 88
+    assert agent_settings.critic.enabled is True
+    assert agent_settings.critic.mode == 'all_actions'
+
+
+
 def test_settings_no_pydantic_frozen_field_warning():
     """Test that Settings model does not trigger Pydantic UnsupportedFieldAttributeWarning.
 

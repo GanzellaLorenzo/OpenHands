@@ -4,14 +4,14 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Provider, Settings } from "#/types/settings";
 
 const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
-  model_name: "SDKSettings",
+  model_name: "AgentSettings",
   sections: [
     {
       key: "llm",
       label: "LLM",
       fields: [
         {
-          key: "llm_model",
+          key: "llm.model",
           label: "Model",
           widget: "text",
           section: "llm",
@@ -25,7 +25,7 @@ const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
           required: true,
         },
         {
-          key: "llm_api_key",
+          key: "llm.api_key",
           label: "API key",
           widget: "password",
           section: "llm",
@@ -45,7 +45,7 @@ const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
       label: "Critic",
       fields: [
         {
-          key: "enable_critic",
+          key: "critic.enabled",
           label: "Enable critic",
           widget: "boolean",
           section: "critic",
@@ -59,7 +59,7 @@ const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
           required: true,
         },
         {
-          key: "critic_mode",
+          key: "critic.mode",
           label: "Critic mode",
           widget: "select",
           section: "critic",
@@ -70,7 +70,7 @@ const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
             { label: "finish_and_message", value: "finish_and_message" },
             { label: "all_actions", value: "all_actions" },
           ],
-          depends_on: ["enable_critic"],
+          depends_on: ["critic.enabled"],
           advanced: true,
           secret: false,
           required: true,
@@ -103,10 +103,10 @@ export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
   max_budget_per_task: DEFAULT_SETTINGS.max_budget_per_task,
   sdk_settings_schema: MOCK_SDK_SETTINGS_SCHEMA,
   sdk_settings_values: {
-    critic_mode: "finish_and_message",
-    enable_critic: false,
-    llm_api_key: null,
-    llm_model: DEFAULT_SETTINGS.llm_model,
+    "critic.mode": "finish_and_message",
+    "critic.enabled": false,
+    "llm.api_key": null,
+    "llm.model": DEFAULT_SETTINGS.llm_model,
   },
 };
 

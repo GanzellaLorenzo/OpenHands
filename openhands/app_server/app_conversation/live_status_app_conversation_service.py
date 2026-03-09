@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import tempfile
 import zipfile
 from collections import defaultdict
@@ -80,7 +81,10 @@ from openhands.app_server.utils.llm_metadata import (
 from openhands.integrations.provider import ProviderType
 from openhands.integrations.service_types import SuggestedTask
 from openhands.sdk import Agent, AgentContext, LocalWorkspace
+from openhands.sdk.context.condenser import LLMSummarizingCondenser
+from openhands.sdk.critic.impl.api import APIBasedCritic
 from openhands.sdk.llm import LLM
+from openhands.sdk.settings import AgentSettings
 from openhands.sdk.plugin import PluginSource
 from openhands.sdk.secret import LookupSecret, SecretValue, StaticSecret
 from openhands.sdk.utils.paging import page_iterator
@@ -111,6 +115,25 @@ After you finalize the plan in PLAN.md:
 
 Your role ends when the plan is finalized. Implementation is handled by the code agent.
 </IMPORTANT_PLANNING_BOUNDARIES>"""
+
+
+def _get_default_critic(
+    llm: LLM, _settings: AgentSettings, _agent: Agent
+) -> APIBasedCritic | None:
+    base_url = llm.base_url
+    api_key = llm.api_key
+    if base_url is None or api_key is None:
+        return None
+
+    pattern = r'^https?://llm-proxy\.[^./]+\.all-hands\.dev'
+    if not re.match(pattern, base_url):
+        return None
+
+    return APIBasedCritic(
+        server_url=f"{base_url.rstrip('/')}/vllm",
+        api_key=api_key,
+        model_name='critic',
+    )
 
 
 @dataclass
@@ -695,6 +718,19 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
         return secrets
 
+    def _get_agent_settings(
+        self, user: UserInfo, llm_model: str | None
+    ) -> AgentSettings:
+        agent_settings = user.to_agent_settings()
+        if llm_model is None:
+            return agent_settings
+
+        return agent_settings.model_copy(
+            update={
+                'llm': agent_settings.llm.model_copy(update={'model': llm_model}),
+            }
+        )
+
     def _configure_llm(self, user: UserInfo, llm_model: str | None) -> LLM:
         """Configure LLM settings.
 
@@ -705,15 +741,18 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         Returns:
             Configured LLM instance
         """
-        model = llm_model or user.llm_model
-        base_url = user.llm_base_url
-        if model and model.startswith('openhands/'):
-            base_url = user.llm_base_url or self.openhands_provider_base_url
+        agent_settings = self._get_agent_settings(user, llm_model)
+        llm_settings = agent_settings.llm
+        base_url = llm_settings.base_url
+        if llm_settings.model.startswith('openhands/'):
+            base_url = llm_settings.base_url or self.openhands_provider_base_url
 
         return LLM(
-            model=model,
+            model=llm_settings.model,
             base_url=base_url,
-            api_key=user.llm_api_key,
+            api_key=llm_settings.api_key,
+            timeout=llm_settings.timeout,
+            max_input_tokens=llm_settings.max_input_tokens,
             usage_id='agent',
         )
 
@@ -933,6 +972,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         secrets: dict[str, SecretValue] | None = None,
         git_provider: ProviderType | None = None,
         working_dir: str | None = None,
+        agent_settings: AgentSettings | None = None,
     ) -> Agent:
         """Create an agent with appropriate tools and context based on agent type.
 
@@ -945,16 +985,16 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             secrets: Optional dictionary of secrets for authentication
             git_provider: Optional git provider type for computing plan path
             working_dir: Optional working directory for computing plan path
+            agent_settings: Resolved SDK agent settings for this conversation
 
         Returns:
             Configured Agent instance with context
         """
-        # Create condenser with user's settings
-        condenser = self._create_condenser(llm, agent_type, condenser_max_size)
+        condenser = None
+        if agent_settings is None:
+            condenser = self._create_condenser(llm, agent_type, condenser_max_size)
 
-        # Create agent based on type
         if agent_type == AgentType.PLAN:
-            # Compute plan path if working_dir is provided
             plan_path = None
             if working_dir:
                 plan_path = self._compute_plan_path(working_dir, git_provider)
@@ -977,10 +1017,25 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 mcp_config=mcp_config,
             )
 
-        # Prepare system message suffix based on agent type
+        if agent_settings is not None:
+            agent = agent_settings.apply_to_agent(agent, critic_factory=_get_default_critic)
+            if agent_type == AgentType.PLAN and isinstance(
+                agent.condenser, LLMSummarizingCondenser
+            ):
+                agent = agent.model_copy(
+                    update={
+                        'condenser': agent.condenser.model_copy(
+                            update={
+                                'llm': agent.condenser.llm.model_copy(
+                                    update={'usage_id': 'planning_condenser'}
+                                )
+                            }
+                        )
+                    }
+                )
+
         effective_system_message_suffix = system_message_suffix
         if agent_type == AgentType.PLAN:
-            # Prepend planning-specific instruction to prevent "Ready to proceed?" behavior
             if system_message_suffix:
                 effective_system_message_suffix = (
                     f'{PLANNING_AGENT_INSTRUCTION}\n\n{system_message_suffix}'
@@ -988,7 +1043,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             else:
                 effective_system_message_suffix = PLANNING_AGENT_INSTRUCTION
 
-        # Add agent context
         agent_context = AgentContext(
             system_message_suffix=effective_system_message_suffix, secrets=secrets
         )
@@ -1234,6 +1288,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
         # Configure LLM and MCP
         llm, mcp_config = await self._configure_llm_and_mcp(user, llm_model)
+        agent_settings = self._get_agent_settings(user, llm_model)
 
         # Create agent with context
         agent = self._create_agent_with_context(
@@ -1245,6 +1300,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             secrets=secrets,
             git_provider=git_provider,
             working_dir=working_dir,
+            agent_settings=agent_settings,
         )
 
         # Finalize and return the conversation request

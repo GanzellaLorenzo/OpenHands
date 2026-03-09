@@ -31,14 +31,14 @@ const BASE_SETTINGS: Settings = {
   search_api_key: "",
   search_api_key_set: false,
   sdk_settings_schema: {
-    model_name: "SDKSettings",
+    model_name: "AgentSettings",
     sections: [
       {
         key: "llm",
         label: "LLM",
         fields: [
           {
-            key: "llm_model",
+            key: "llm.model",
             label: "Model",
             widget: "text",
             section: "llm",
@@ -52,7 +52,7 @@ const BASE_SETTINGS: Settings = {
             required: true,
           },
           {
-            key: "llm_api_key",
+            key: "llm.api_key",
             label: "API key",
             widget: "password",
             section: "llm",
@@ -72,7 +72,7 @@ const BASE_SETTINGS: Settings = {
         label: "Critic",
         fields: [
           {
-            key: "enable_critic",
+            key: "critic.enabled",
             label: "Enable critic",
             widget: "boolean",
             section: "critic",
@@ -86,7 +86,7 @@ const BASE_SETTINGS: Settings = {
             required: true,
           },
           {
-            key: "critic_mode",
+            key: "critic.mode",
             label: "Critic mode",
             widget: "select",
             section: "critic",
@@ -97,7 +97,7 @@ const BASE_SETTINGS: Settings = {
               { label: "finish_and_message", value: "finish_and_message" },
               { label: "all_actions", value: "all_actions" },
             ],
-            depends_on: ["enable_critic"],
+            depends_on: ["critic.enabled"],
             advanced: true,
             secret: false,
             required: true,
@@ -107,9 +107,9 @@ const BASE_SETTINGS: Settings = {
     ],
   },
   sdk_settings_values: {
-    critic_mode: "finish_and_message",
-    enable_critic: false,
-    llm_model: "openai/gpt-4o",
+    "critic.mode": "finish_and_message",
+    "critic.enabled": false,
+    "llm.model": "openai/gpt-4o",
   },
   security_analyzer: null,
   user_consents_to_analytics: false,
@@ -119,10 +119,10 @@ const BASE_SETTINGS: Settings = {
 describe("sdk settings schema helpers", () => {
   it("builds initial form values from the current settings", () => {
     expect(buildInitialSettingsFormValues(BASE_SETTINGS)).toEqual({
-      critic_mode: "finish_and_message",
-      enable_critic: false,
-      llm_api_key: "",
-      llm_model: "openai/gpt-4o",
+      "critic.mode": "finish_and_message",
+      "critic.enabled": false,
+      "llm.api_key": "",
+      "llm.model": "openai/gpt-4o",
     });
   });
 
@@ -134,7 +134,7 @@ describe("sdk settings schema helpers", () => {
         ...BASE_SETTINGS,
         sdk_settings_values: {
           ...BASE_SETTINGS.sdk_settings_values,
-          critic_mode: "all_actions",
+          "critic.mode": "all_actions",
         },
       }),
     ).toBe(true);
@@ -165,7 +165,7 @@ describe("sdk settings schema helpers", () => {
     expect(
       getVisibleSettingsSections(
         BASE_SETTINGS.sdk_settings_schema!,
-        { ...values, enable_critic: true },
+        { ...values, "critic.enabled": true },
         true,
       )[1].fields,
     ).toHaveLength(2);
@@ -176,19 +176,19 @@ describe("sdk settings schema helpers", () => {
       BASE_SETTINGS.sdk_settings_schema!,
       {
         ...buildInitialSettingsFormValues(BASE_SETTINGS),
-        enable_critic: true,
-        llm_api_key: "new-key",
+        "critic.enabled": true,
+        "llm.api_key": "new-key",
       },
       {
-        enable_critic: true,
-        llm_api_key: true,
-        llm_model: false,
+        "critic.enabled": true,
+        "llm.api_key": true,
+        "llm.model": false,
       },
     );
 
     expect(payload).toEqual({
-      enable_critic: true,
-      llm_api_key: "new-key",
+      "critic.enabled": true,
+      "llm.api_key": "new-key",
     });
   });
 });

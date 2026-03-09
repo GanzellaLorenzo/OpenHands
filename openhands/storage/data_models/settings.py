@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import (
     BaseModel,
@@ -17,10 +17,29 @@ from openhands.core.config.llm_config import LLMConfig
 from openhands.core.config.mcp_config import MCPConfig
 from openhands.core.config.utils import load_openhands_config
 from openhands.storage.data_models.secrets import Secrets
+from openhands.sdk.settings import AgentSettings
+
+SDK_LEGACY_FIELD_MAP: dict[str, str] = {
+    'llm.model': 'llm_model',
+    'llm.api_key': 'llm_api_key',
+    'llm.base_url': 'llm_base_url',
+    'condenser.enabled': 'enable_default_condenser',
+    'condenser.max_size': 'condenser_max_size',
+}
+
+
+def _assign_dotted_value(target: dict[str, Any], dotted_key: str, value: Any) -> None:
+    current = target
+    parts = dotted_key.split('.')
+    for part in parts[:-1]:
+        current = current.setdefault(part, {})
+    current[parts[-1]] = value
+
+
 
 
 class Settings(BaseModel):
-    """Persisted settings for OpenHands sessions"""
+    """Persisted settings for OpenHands sessions."""
 
     language: str | None = None
     agent: str | None = None
@@ -192,3 +211,25 @@ class Settings(BaseModel):
         # Create new settings with merged MCP config
         self.mcp_config = merged_mcp
         return self
+
+    def to_agent_settings(self) -> AgentSettings:
+        """Build SDK AgentSettings from persisted OpenHands settings.
+
+        Values stored in ``sdk_settings_values`` take precedence. Legacy flat fields
+        are used as a fallback so older stored settings continue to work.
+        """
+        payload: dict[str, Any] = {}
+        sdk_values = dict(self.sdk_settings_values)
+
+        for key, value in sdk_values.items():
+            _assign_dotted_value(payload, key, value)
+
+        for key, legacy_field in SDK_LEGACY_FIELD_MAP.items():
+            if key in sdk_values:
+                continue
+            legacy_value = getattr(self, legacy_field)
+            if legacy_value is None:
+                continue
+            _assign_dotted_value(payload, key, legacy_value)
+
+        return AgentSettings.model_validate(payload)

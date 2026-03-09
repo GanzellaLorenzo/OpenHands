@@ -83,25 +83,27 @@ def test_client():
 async def test_settings_api_endpoints(test_client):
     """Test that the settings API endpoints work with the new auth system."""
     sdk_settings_schema = {
-        'model_name': 'SDKSettings',
+        'model_name': 'AgentSettings',
         'sections': [
             {
                 'key': 'llm',
                 'label': 'LLM',
                 'fields': [
-                    {'key': 'llm_timeout'},
-                    {'key': 'llm_api_key', 'secret': True},
+                    {'key': 'llm.model'},
+                    {'key': 'llm.base_url'},
+                    {'key': 'llm.timeout'},
+                    {'key': 'llm.api_key', 'secret': True},
                 ],
             },
             {
                 'key': 'critic',
                 'label': 'Critic',
                 'fields': [
-                    {'key': 'enable_critic'},
-                    {'key': 'critic_mode'},
-                    {'key': 'enable_iterative_refinement'},
-                    {'key': 'critic_threshold'},
-                    {'key': 'max_refinement_iterations'},
+                    {'key': 'critic.enabled'},
+                    {'key': 'critic.mode'},
+                    {'key': 'critic.enable_iterative_refinement'},
+                    {'key': 'critic.threshold'},
+                    {'key': 'critic.max_refinement_iterations'},
                 ],
             },
         ],
@@ -114,16 +116,16 @@ async def test_settings_api_endpoints(test_client):
         'max_iterations': 100,
         'security_analyzer': 'default',
         'confirmation_mode': True,
-        'llm_model': 'test-model',
-        'llm_api_key': 'test-key',
-        'llm_base_url': 'https://test.com',
-        'llm_timeout': 123,
+        'llm.model': 'test-model',
+        'llm.api_key': 'test-key',
+        'llm.base_url': 'https://test.com',
+        'llm.timeout': 123,
         'remote_runtime_resource_factor': 2,
-        'enable_critic': True,
-        'critic_mode': 'all_actions',
-        'enable_iterative_refinement': True,
-        'critic_threshold': 0.7,
-        'max_refinement_iterations': 4,
+        'critic.enabled': True,
+        'critic.mode': 'all_actions',
+        'critic.enable_iterative_refinement': True,
+        'critic.threshold': 0.7,
+        'critic.max_refinement_iterations': 4,
     }
 
     with patch(
@@ -140,16 +142,18 @@ async def test_settings_api_endpoints(test_client):
         response = test_client.get('/api/settings')
         assert response.status_code == 200
         response_data = response.json()
-        assert response_data['sdk_settings_schema']['model_name'] == 'SDKSettings'
-        assert response_data['sdk_settings_values']['llm_timeout'] == 123
-        assert response_data['sdk_settings_values']['enable_critic'] is True
-        assert response_data['sdk_settings_values']['critic_mode'] == 'all_actions'
+        assert response_data['sdk_settings_schema']['model_name'] == 'AgentSettings'
+        assert response_data['sdk_settings_values']['llm.model'] == 'test-model'
+        assert response_data['sdk_settings_values']['llm.timeout'] == 123
+        assert response_data['sdk_settings_values']['critic.enabled'] is True
+        assert response_data['sdk_settings_values']['critic.mode'] == 'all_actions'
         assert (
-            response_data['sdk_settings_values']['enable_iterative_refinement'] is True
+            response_data['sdk_settings_values']['critic.enable_iterative_refinement']
+            is True
         )
-        assert response_data['sdk_settings_values']['critic_threshold'] == 0.7
-        assert response_data['sdk_settings_values']['max_refinement_iterations'] == 4
-        assert response_data['sdk_settings_values']['llm_api_key'] is None
+        assert response_data['sdk_settings_values']['critic.threshold'] == 0.7
+        assert response_data['sdk_settings_values']['critic.max_refinement_iterations'] == 4
+        assert response_data['sdk_settings_values']['llm.api_key'] is None
 
         # Test updating with partial settings
         partial_settings = {
@@ -163,7 +167,7 @@ async def test_settings_api_endpoints(test_client):
 
         response = test_client.get('/api/settings')
         assert response.status_code == 200
-        assert response.json()['sdk_settings_values']['llm_timeout'] == 123
+        assert response.json()['sdk_settings_values']['llm.timeout'] == 123
 
         # Test the unset-provider-tokens endpoint
         response = test_client.post('/api/unset-provider-tokens')

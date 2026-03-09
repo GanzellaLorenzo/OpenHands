@@ -62,10 +62,10 @@ describe("LlmSettingsScreen", () => {
     renderLlmSettingsScreen();
 
     await screen.findByTestId("llm-settings-screen");
-    expect(screen.getByTestId("sdk-settings-llm_model")).toBeInTheDocument();
-    expect(screen.getByTestId("sdk-settings-llm_api_key")).toBeInTheDocument();
+    expect(screen.getByTestId("sdk-settings-llm.model")).toBeInTheDocument();
+    expect(screen.getByTestId("sdk-settings-llm.api_key")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("sdk-settings-critic_mode"),
+      screen.queryByTestId("sdk-settings-critic.mode"),
     ).not.toBeInTheDocument();
   });
 
@@ -77,15 +77,15 @@ describe("LlmSettingsScreen", () => {
     await screen.findByTestId("llm-settings-screen");
     await userEvent.click(screen.getByTestId("llm-settings-advanced-toggle"));
 
-    const criticSwitch = screen.getByTestId("sdk-settings-enable_critic");
+    const criticSwitch = screen.getByTestId("sdk-settings-critic.enabled");
     expect(criticSwitch).toBeInTheDocument();
     expect(
-      screen.queryByTestId("sdk-settings-critic_mode"),
+      screen.queryByTestId("sdk-settings-critic.mode"),
     ).not.toBeInTheDocument();
 
     await userEvent.click(criticSwitch);
 
-    expect(screen.getByTestId("sdk-settings-critic_mode")).toBeInTheDocument();
+    expect(screen.getByTestId("sdk-settings-critic.mode")).toBeInTheDocument();
   });
 
   it("starts in advanced mode when advanced sdk values override defaults", async () => {
@@ -93,8 +93,8 @@ describe("LlmSettingsScreen", () => {
       buildSettings({
         sdk_settings_values: {
           ...MOCK_DEFAULT_USER_SETTINGS.sdk_settings_values,
-          critic_mode: "all_actions",
-          enable_critic: true,
+          "critic.mode": "all_actions",
+          "critic.enabled": true,
         },
       }),
     );
@@ -102,7 +102,7 @@ describe("LlmSettingsScreen", () => {
     renderLlmSettingsScreen();
 
     await screen.findByTestId("llm-settings-screen");
-    expect(screen.getByTestId("sdk-settings-critic_mode")).toBeInTheDocument();
+    expect(screen.getByTestId("sdk-settings-critic.mode")).toBeInTheDocument();
   });
 
   it("saves changed schema-driven fields through the generic settings payload", async () => {
@@ -113,7 +113,7 @@ describe("LlmSettingsScreen", () => {
 
     renderLlmSettingsScreen();
 
-    const llmModelInput = await screen.findByTestId("sdk-settings-llm_model");
+    const llmModelInput = await screen.findByTestId("sdk-settings-llm.model");
     await userEvent.clear(llmModelInput);
     await userEvent.type(llmModelInput, "openai/gpt-4o-mini");
     await userEvent.click(screen.getByTestId("save-button"));
@@ -121,7 +121,7 @@ describe("LlmSettingsScreen", () => {
     await waitFor(() => {
       expect(saveSettingsSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          llm_model: "openai/gpt-4o-mini",
+          "llm.model": "openai/gpt-4o-mini",
         }),
       );
     });
