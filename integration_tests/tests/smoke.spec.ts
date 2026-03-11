@@ -110,10 +110,18 @@ test.describe("Smoke Tests @smoke", () => {
     // Verify no errors occurred
     await conversationPage.verifyNoErrors();
 
+    // Verify the response contains "heads" or "tails" (case insensitive)
+    const lastMessage = await conversationPage.getLastAgentMessage();
+    expect(lastMessage).not.toBeNull();
+    const responseText = lastMessage!.toLowerCase();
+    const containsValidResponse = responseText.includes("heads") || responseText.includes("tails");
+    expect(containsValidResponse, `Expected response to contain "heads" or "tails", but got: "${lastMessage}"`).toBe(true);
+    console.log(`Agent response: "${lastMessage}"`);
+
     // Take screenshot of successful response
     await page.screenshot({ path: "test-results/screenshots/agent-response.png" });
 
-    console.log("Smoke test passed: Agent responded without errors");
+    console.log("Smoke test passed: Agent responded with valid coin flip result");
   });
 
   test("should not display error banner on successful interaction", async ({ page }) => {
