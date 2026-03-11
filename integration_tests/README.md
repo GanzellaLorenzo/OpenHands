@@ -40,7 +40,8 @@ cp .env.example .env
 ```env
 GITHUB_TEST_USERNAME=your-test-account
 GITHUB_TEST_PASSWORD=your-test-password
-TEST_REPO_URL=https://github.com/OpenHands/deploy
+# Enable this only if your user has access to this repository
+#TEST_REPO_URL=https://github.com/OpenHands/deploy
 ```
 
 ### Run Tests

@@ -90,12 +90,8 @@ export class HomePage extends BasePage {
   /**
    * Start a new conversation
    */
-  async startNewConversation(): Promise<void> {
-    // Look for a "new conversation" or "start" button
-    const startButton = this.page
-      .locator('button:has-text("New"), button:has-text("Start"), [data-testid*="start"], [data-testid*="new"]')
-      .first();
-
+  async startNewConversation(buttonId: string): Promise<void> {
+    const startButton = this.page.getByTestId(buttonId)
     if (await startButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await startButton.click();
     }

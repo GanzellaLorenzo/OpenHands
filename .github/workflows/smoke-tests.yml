@@ -77,7 +77,7 @@ jobs:
           GITHUB_TEST_USERNAME: ${{ secrets.SMOKE_TEST_GITHUB_USERNAME }}
           GITHUB_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_GITHUB_PASSWORD }}
           GITHUB_TEST_TOTP_SECRET: ${{ secrets.SMOKE_TEST_GITHUB_TOTP_SECRET }}
-          TEST_REPO_URL: ${{ secrets.SMOKE_TEST_REPO_URL || 'https://github.com/OpenHands/deploy' }}
+          TEST_REPO_URL: ${{ secrets.SMOKE_TEST_REPO_URL }}
           CI: true
         run: npm test
 

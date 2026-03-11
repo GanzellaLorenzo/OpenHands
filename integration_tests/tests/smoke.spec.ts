@@ -16,12 +16,12 @@ import { HomePage, ConversationPage } from "../pages";
  * - @critical: Critical functionality tests
  *
  * Environment Variables:
- * - TEST_REPO_URL: Repository to use for testing (default: https://github.com/OpenHands/deploy)
+ * - TEST_REPO_URL: Repository to use for testing (default: null)
  * - TEST_PROMPT: Prompt to send to agent (default: "Flip a coin!")
  */
 
 // Test configuration
-const TEST_REPO_URL = process.env.TEST_REPO_URL || "https://github.com/OpenHands/deploy";
+const TEST_REPO_URL = process.env.TEST_REPO_URL;
 const TEST_PROMPT = process.env.TEST_PROMPT || "Flip a coin!";
 
 test.describe("Smoke Tests @smoke", () => {
@@ -73,16 +73,19 @@ test.describe("Smoke Tests @smoke", () => {
     // Navigate to home
     await homePage.goto();
 
-    // Select repository if repo selection is available
-    try {
-      await homePage.selectRepository(TEST_REPO_URL);
-      console.log(`Selected repository: ${TEST_REPO_URL}`);
-    } catch (e) {
-      console.log("Repository selection not available or failed, continuing...");
+    if (TEST_REPO_URL) {
+      // Select repository if repo selection is available
+      try {
+        await homePage.selectRepository(TEST_REPO_URL);
+        console.log(`Selected repository: ${TEST_REPO_URL}`);
+      } catch (e) {
+        console.log("Repository selection not available or failed, continuing...");
+      }
+      // Start a new conversation
+      await homePage.startNewConversation('repo-launch-button');
+    } else {
+      await homePage.startNewConversation('launch-new-conversation-button');
     }
-
-    // Start a new conversation
-    await homePage.startNewConversation();
 
     // Wait for conversation page to load
     await page.waitForTimeout(2000); // Allow navigation to complete
