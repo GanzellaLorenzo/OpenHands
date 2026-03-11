@@ -142,6 +142,51 @@ test.describe("Smoke Tests @smoke", () => {
 
     console.log("Successfully navigated to running conversation");
   });
+
+  test("should be able to use Tavily search and get accurate response", async ({ page }) => {
+    // Navigate to home page and start a new conversation
+    await homePage.goto();
+
+    if (TEST_REPO_URL) {
+      try {
+        await homePage.selectRepository(TEST_REPO_URL);
+      } catch {
+        // Repository selection might not be required
+      }
+      await homePage.startNewConversation('repo-launch-button');
+    } else {
+      await homePage.startNewConversation('launch-new-conversation-button');
+    }
+
+    // Wait for conversation page to load
+    await page.waitForTimeout(2000);
+
+    // Initialize conversation page
+    conversationPage = new ConversationPage(page);
+
+    // Wait for the agent to be ready
+    await conversationPage.waitForConversationReady();
+
+    // Send the Tavily search prompt
+    const tavilyPrompt = "Using Tavily search, please tell me who is the prime minister of Ireland.";
+    console.log(`Sending prompt: "${tavilyPrompt}"`);
+    await conversationPage.executePrompt(tavilyPrompt, 180_000); // Longer timeout for search
+
+    // Verify no errors occurred
+    await conversationPage.verifyNoErrors();
+
+    // Verify the response contains "Micheál Martin"
+    const lastMessage = await conversationPage.getLastAgentMessage();
+    expect(lastMessage).not.toBeNull();
+    const containsExpectedAnswer = lastMessage!.includes("Micheál Martin");
+    expect(containsExpectedAnswer, `Expected response to contain "Micheál Martin", but got: "${lastMessage}"`).toBe(true);
+    console.log(`Agent response includes expected answer: Micheál Martin`);
+
+    // Take screenshot of successful response
+    await page.screenshot({ path: "test-results/screenshots/tavily-search-response.png" });
+
+    console.log("Tavily search test passed: Agent correctly identified the Prime Minister of Ireland");
+  });
 });
 
 test.describe("Health Check Tests @smoke", () => {
