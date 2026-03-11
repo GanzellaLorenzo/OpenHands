@@ -102,9 +102,11 @@ export class HomePage extends BasePage {
 
   /**
    * Open user settings menu
+   * Note: The menu appears on hover in non-mobile mode, not on click
    */
   async openUserMenu(): Promise<void> {
-    await this.userAvatar.click({ force: true });
+    // The user menu is triggered by hover, not click, in non-mobile mode
+    await this.userAvatar.hover();
     await expect(this.accountSettingsMenu).toBeVisible({ timeout: 5_000 });
   }
 
