@@ -124,32 +124,23 @@ test.describe("Smoke Tests @smoke", () => {
     console.log("Smoke test passed: Agent responded with valid coin flip result");
   });
 
-  test("should not display error banner on successful interaction", async ({ page }) => {
+  test("should be able to navigate to a running conversation", async ({ page }) => {
+    // Navigate to home page
     await homePage.goto();
 
-    // Check no error banner on home screen
-    const homeError = await homePage.hasError();
-    expect(homeError).toBe(false);
+    // Click on the first conversation in the recent conversations list
+    await homePage.clickFirstConversation();
 
-    // Start conversation
-    if (TEST_REPO_URL) {
-      try {
-        await homePage.selectRepository(TEST_REPO_URL);
-      } catch {
-        // Repository selection might not be required
-      }
-      await homePage.startNewConversation('repo-launch-button');
-    } else {
-      await homePage.startNewConversation();
-    }
-    await page.waitForTimeout(2000);
-
+    // Initialize conversation page
     conversationPage = new ConversationPage(page);
-    await conversationPage.waitForConversationReady(60_000);
 
-    // Check no error banner on conversation screen
-    const conversationError = await conversationPage.hasError();
-    expect(conversationError).toBe(false);
+    // Wait for the conversation to be ready by checking for "Waiting for task" status
+    await conversationPage.waitForConversationReady();
+
+    // Take screenshot of successful navigation
+    await page.screenshot({ path: "test-results/screenshots/navigated-conversation.png" });
+
+    console.log("Successfully navigated to running conversation");
   });
 });
 

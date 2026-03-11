@@ -134,4 +134,24 @@ export class HomePage extends BasePage {
     const conversations = await this.recentConversationsSection.locator("a, button, [role='button']").allTextContents();
     return conversations.filter((text) => text.trim().length > 0);
   }
+
+  /**
+   * Click on the first conversation in the recent conversations list
+   * The conversations are displayed as links in the recent-conversations section
+   */
+  async clickFirstConversation(): Promise<void> {
+    // Wait for recent conversations section to be visible
+    const recentConversations = this.page.getByTestId("recent-conversations");
+    await expect(recentConversations).toBeVisible({ timeout: 10_000 });
+
+    // Find the first conversation link (they link to /conversations/{id})
+    const firstConversationLink = recentConversations.locator('a[href^="/conversations/"]').first();
+    await expect(firstConversationLink).toBeVisible({ timeout: 10_000 });
+
+    // Click the conversation
+    await firstConversationLink.click();
+
+    // Wait for navigation to conversation page
+    await this.page.waitForURL(/\/conversations\//, { timeout: 30_000 });
+  }
 }
