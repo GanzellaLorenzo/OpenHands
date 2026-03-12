@@ -73,17 +73,19 @@ def _import_all_models():
     them here — inside the controller only — avoids that problem.
     """
     import importlib
+    import logging
     import pkgutil
 
     import storage as _storage_pkg
 
+    log = logging.getLogger(__name__)
     for _importer, modname, _ispkg in pkgutil.walk_packages(
         _storage_pkg.__path__, prefix='storage.'
     ):
         try:
             importlib.import_module(modname)
-        except Exception:
-            pass  # skip modules with unsatisfied dependencies
+        except ImportError as e:
+            log.warning('Failed to import %s: %s', modname, e)
 
 
 def _create_template_db(info):
