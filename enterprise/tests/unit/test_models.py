@@ -4,7 +4,6 @@ Test that the models are correctly defined.
 
 from uuid import uuid4
 
-import pytest
 from storage.org import Org
 from storage.org_member import OrgMember
 from storage.role import Role

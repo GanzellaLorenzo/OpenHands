@@ -90,7 +90,9 @@ class TestConversationCallback:
             org = Org(id=UUID('5594c7b6-f959-4b81-92e9-b09c206f5081'), name='test-org')
             session.add(org)
             session.flush()
-            user = User(id=UUID('5594c7b6-f959-4b81-92e9-b09c206f5081'), current_org_id=org.id)
+            user = User(
+                id=UUID('5594c7b6-f959-4b81-92e9-b09c206f5081'), current_org_id=org.id
+            )
             session.add(user)
             session.flush()
 

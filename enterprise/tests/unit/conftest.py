@@ -17,9 +17,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import sessionmaker
-from testcontainers.postgres import PostgresContainer
-from xdist import is_xdist_controller
-
 from storage.api_key import ApiKey  # noqa: F401
 from storage.base import Base
 from storage.billing_session import BillingSession
@@ -38,7 +35,8 @@ from storage.stored_conversation_metadata_saas import (
 from storage.stored_offline_token import StoredOfflineToken
 from storage.stripe_customer import StripeCustomer
 from storage.user import User
-
+from testcontainers.postgres import PostgresContainer
+from xdist import is_xdist_controller
 
 # ---------------------------------------------------------------------------
 # PostgreSQL container lifecycle — managed by the xdist controller
@@ -144,6 +142,7 @@ def pytest_sessionfinish(session, exitstatus):
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def create_keycloak_user_info():
     """Fixture that returns a factory function to create KeycloakUserInfo models.
@@ -174,6 +173,7 @@ def _pg_template_db(request):
 # Function-scoped: one cloned database per test
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope='function')
 def _test_db(_pg_template_db):
     """Clone the template database for a single test."""
@@ -196,7 +196,7 @@ def _test_db(_pg_template_db):
     with default_engine.connect() as conn:
         conn.execute(
             text(
-                f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f'SELECT pg_terminate_backend(pid) FROM pg_stat_activity '
                 f"WHERE datname = '{db_name}' AND pid <> pg_backend_pid()"
             )
         )

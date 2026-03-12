@@ -40,7 +40,9 @@ async def async_session(async_session_maker) -> AsyncGenerator[AsyncSession, Non
 
 
 @pytest.fixture
-async def async_session_with_users(async_session_maker) -> AsyncGenerator[AsyncSession, None]:
+async def async_session_with_users(
+    async_session_maker,
+) -> AsyncGenerator[AsyncSession, None]:
     """Create an async session with pre-populated Org and User rows for testing."""
 
     async with async_session_maker() as db_session:
