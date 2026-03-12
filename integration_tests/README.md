@@ -11,6 +11,7 @@ These integration tests verify the critical path of the OpenHands application:
 3. ✅ Repository selection
 4. ✅ Conversation creation
 5. ✅ Agent interaction without errors
+6. ✅ GitHub Resolver integration (enterprise)
 
 ## Quick Start
 
@@ -294,6 +295,94 @@ async function generateTOTP(secret: string): Promise<string> {
   return authenticator.generate(secret);
 }
 ```
+
+## GitHub Resolver Integration Tests
+
+The GitHub Resolver tests verify the end-to-end flow of the resolver integration, where GitHub webhooks trigger OpenHands to work on issues and pull requests.
+
+### Architecture
+
+The tests use a **Mock GitHub Server** instead of connecting to the real GitHub API. This allows:
+
+- Complete control over webhook payloads and responses
+- Testing without requiring real GitHub credentials or installations
+- Isolation from GitHub's rate limits and service availability
+- Reproducible test scenarios
+
+### Mock GitHub Server
+
+The mock server (`mocks/github-mock-server.ts`) simulates:
+
+- GitHub REST API endpoints (repos, issues, comments, reactions)
+- GitHub App installation token generation
+- Webhook signature verification
+- Recording of outgoing responses (comments posted by the resolver)
+
+### Running GitHub Resolver Tests
+
+1. **Start the OpenHands application with enterprise features:**
+
+```bash
+# From the project root
+cd enterprise
+make start-backend
+```
+
+2. **Configure environment variables:**
+
+```bash
+# In integration_tests/.env
+GITHUB_APP_WEBHOOK_SECRET=test-webhook-secret
+APP_PORT=12000
+MOCK_GITHUB_PORT=9999
+```
+
+3. **Run the tests:**
+
+```bash
+cd integration_tests
+npm run test:github-resolver
+```
+
+### Mock Server Standalone Mode
+
+You can run the mock GitHub server standalone for debugging:
+
+```bash
+npm run mock:github
+```
+
+This starts the server on port 9999 (configurable via `MOCK_GITHUB_PORT`).
+
+### Test Endpoints
+
+The mock server exposes test control endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/_health` | GET | Health check |
+| `/_test/webhook-events` | GET | Get recorded webhook events |
+| `/_test/outgoing-responses` | GET | Get responses posted by resolver |
+| `/_test/clear-events` | POST | Clear recorded events |
+| `/_test/reset` | POST | Reset all mock data |
+| `/_test/trigger-webhook` | POST | Trigger a webhook to target URL |
+
+### Test Scenarios
+
+The GitHub Resolver tests cover:
+
+1. **Issue Labeled** - Adding the "openhands" label to an issue
+2. **Issue Comment** - Commenting "@openhands" on an issue
+3. **PR Review Comment** - Commenting "@openhands" on a PR review
+4. **Error Handling** - Invalid signatures, missing installation IDs
+
+### Customizing Test Data
+
+Edit `mocks/github-mock-server.ts` to modify the default test data:
+
+- Repository information
+- Issue content
+- Installation configurations
 
 ## Best Practices
 
