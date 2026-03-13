@@ -40,29 +40,40 @@ const BASE_SETTINGS: Settings = {
           {
             key: "llm.model",
             label: "Model",
-            widget: "text",
             section: "llm",
             section_label: "LLM",
-            order: 10,
+            value_type: "string",
             default: "claude-sonnet-4-20250514",
             choices: [],
             depends_on: [],
-            advanced: false,
+            prominence: "critical",
             secret: false,
             required: true,
           },
           {
             key: "llm.api_key",
-            label: "API key",
-            widget: "password",
+            label: "API Key",
             section: "llm",
             section_label: "LLM",
-            order: 20,
+            value_type: "string",
             default: null,
             choices: [],
             depends_on: [],
-            advanced: false,
+            prominence: "critical",
             secret: true,
+            required: false,
+          },
+          {
+            key: "llm.litellm_extra_body",
+            label: "LiteLLM Extra Body",
+            section: "llm",
+            section_label: "LLM",
+            value_type: "object",
+            default: {},
+            choices: [],
+            depends_on: [],
+            prominence: "minor",
+            secret: false,
             required: false,
           },
         ],
@@ -74,31 +85,29 @@ const BASE_SETTINGS: Settings = {
           {
             key: "critic.enabled",
             label: "Enable critic",
-            widget: "boolean",
             section: "critic",
             section_label: "Critic",
-            order: 10,
+            value_type: "boolean",
             default: false,
             choices: [],
             depends_on: [],
-            advanced: false,
+            prominence: "critical",
             secret: false,
             required: true,
           },
           {
             key: "critic.mode",
-            label: "Critic mode",
-            widget: "select",
+            label: "Mode",
             section: "critic",
             section_label: "Critic",
-            order: 20,
+            value_type: "string",
             default: "finish_and_message",
             choices: [
               { label: "finish_and_message", value: "finish_and_message" },
               { label: "all_actions", value: "all_actions" },
             ],
             depends_on: ["critic.enabled"],
-            advanced: true,
+            prominence: "minor",
             secret: false,
             required: true,
           },
@@ -122,6 +131,7 @@ describe("sdk settings schema helpers", () => {
       "critic.mode": "finish_and_message",
       "critic.enabled": false,
       "llm.api_key": "",
+      "llm.litellm_extra_body": "{}",
       "llm.model": "openai/gpt-4o",
     });
   });
@@ -140,7 +150,7 @@ describe("sdk settings schema helpers", () => {
     ).toBe(true);
   });
 
-  it("filters advanced and dependent fields based on current values", () => {
+  it("filters minor and dependent fields based on current values", () => {
     const values = buildInitialSettingsFormValues(BASE_SETTINGS);
 
     expect(
@@ -153,7 +163,10 @@ describe("sdk settings schema helpers", () => {
       {
         key: "llm",
         label: "LLM",
-        fields: BASE_SETTINGS.sdk_settings_schema!.sections[0].fields,
+        fields: BASE_SETTINGS.sdk_settings_schema!.sections[0].fields.slice(
+          0,
+          2,
+        ),
       },
       {
         key: "critic",
@@ -178,10 +191,16 @@ describe("sdk settings schema helpers", () => {
         ...buildInitialSettingsFormValues(BASE_SETTINGS),
         "critic.enabled": true,
         "llm.api_key": "new-key",
+        "llm.litellm_extra_body": JSON.stringify(
+          { metadata: { tier: "enterprise" } },
+          null,
+          2,
+        ),
       },
       {
         "critic.enabled": true,
         "llm.api_key": true,
+        "llm.litellm_extra_body": true,
         "llm.model": false,
       },
     );
@@ -189,6 +208,7 @@ describe("sdk settings schema helpers", () => {
     expect(payload).toEqual({
       "critic.enabled": true,
       "llm.api_key": "new-key",
+      "llm.litellm_extra_body": { metadata: { tier: "enterprise" } },
     });
   });
 });

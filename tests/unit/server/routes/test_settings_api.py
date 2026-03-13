@@ -99,21 +99,63 @@ async def test_settings_api_endpoints(test_client):
                 'key': 'llm',
                 'label': 'LLM',
                 'fields': [
-                    {'key': 'llm.model'},
-                    {'key': 'llm.base_url'},
-                    {'key': 'llm.timeout'},
-                    {'key': 'llm.api_key', 'secret': True},
+                    {
+                        'key': 'llm.model',
+                        'value_type': 'string',
+                        'prominence': 'critical',
+                    },
+                    {
+                        'key': 'llm.base_url',
+                        'value_type': 'string',
+                        'prominence': 'major',
+                    },
+                    {
+                        'key': 'llm.timeout',
+                        'value_type': 'integer',
+                        'prominence': 'minor',
+                    },
+                    {
+                        'key': 'llm.litellm_extra_body',
+                        'value_type': 'object',
+                        'prominence': 'minor',
+                    },
+                    {
+                        'key': 'llm.api_key',
+                        'value_type': 'string',
+                        'prominence': 'critical',
+                        'secret': True,
+                    },
                 ],
             },
             {
                 'key': 'critic',
                 'label': 'Critic',
                 'fields': [
-                    {'key': 'critic.enabled'},
-                    {'key': 'critic.mode'},
-                    {'key': 'critic.enable_iterative_refinement'},
-                    {'key': 'critic.threshold'},
-                    {'key': 'critic.max_refinement_iterations'},
+                    {
+                        'key': 'critic.enabled',
+                        'value_type': 'boolean',
+                        'prominence': 'critical',
+                    },
+                    {
+                        'key': 'critic.mode',
+                        'value_type': 'string',
+                        'prominence': 'minor',
+                    },
+                    {
+                        'key': 'critic.enable_iterative_refinement',
+                        'value_type': 'boolean',
+                        'prominence': 'major',
+                    },
+                    {
+                        'key': 'critic.threshold',
+                        'value_type': 'number',
+                        'prominence': 'minor',
+                    },
+                    {
+                        'key': 'critic.max_refinement_iterations',
+                        'value_type': 'integer',
+                        'prominence': 'minor',
+                    },
                 ],
             },
         ],
@@ -130,6 +172,7 @@ async def test_settings_api_endpoints(test_client):
         'llm.api_key': 'test-key',
         'llm.base_url': 'https://test.com',
         'llm.timeout': 123,
+        'llm.litellm_extra_body': {'metadata': {'tier': 'pro'}},
         'remote_runtime_resource_factor': 2,
         'critic.enabled': True,
         'critic.mode': 'all_actions',
@@ -162,9 +205,12 @@ async def test_settings_api_endpoints(test_client):
             'llm.model',
             'llm.base_url',
             'llm.timeout',
+            'llm.litellm_extra_body',
             'llm.api_key',
         ]
         assert llm_section['fields'][-1]['secret'] is True
+        assert llm_section['fields'][2]['value_type'] == 'integer'
+        assert llm_section['fields'][3]['value_type'] == 'object'
         assert critic_section['label'] == 'Critic'
         assert [field['key'] for field in critic_section['fields']] == [
             'critic.enabled',
@@ -175,6 +221,9 @@ async def test_settings_api_endpoints(test_client):
         ]
         assert response_data['sdk_settings_values']['llm.model'] == 'test-model'
         assert response_data['sdk_settings_values']['llm.timeout'] == 123
+        assert response_data['sdk_settings_values']['llm.litellm_extra_body'] == {
+            'metadata': {'tier': 'pro'}
+        }
         assert response_data['sdk_settings_values']['critic.enabled'] is True
         assert response_data['sdk_settings_values']['critic.mode'] == 'all_actions'
         assert (

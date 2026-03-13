@@ -42,6 +42,7 @@ from openhands.app_server.app_conversation.app_conversation_service import (
 )
 from openhands.app_server.app_conversation.app_conversation_service_base import (
     AppConversationServiceBase,
+    get_project_dir,
 )
 from openhands.app_server.app_conversation.app_conversation_start_task_service import (
     AppConversationStartTaskService,
@@ -81,12 +82,12 @@ from openhands.app_server.utils.llm_metadata import (
 from openhands.integrations.provider import ProviderType
 from openhands.integrations.service_types import SuggestedTask
 from openhands.sdk import Agent, AgentContext, LocalWorkspace
-from openhands.sdk.context.condenser import LLMSummarizingCondenser
+from openhands.sdk.critic import IterativeRefinementConfig
 from openhands.sdk.critic.impl.api import APIBasedCritic
 from openhands.sdk.llm import LLM
-from openhands.sdk.settings import AgentSettings
 from openhands.sdk.plugin import PluginSource
 from openhands.sdk.secret import LookupSecret, SecretValue, StaticSecret
+from openhands.sdk.settings import AgentSettings
 from openhands.sdk.utils.paging import page_iterator
 from openhands.sdk.workspace.remote.async_remote_workspace import AsyncRemoteWorkspace
 from openhands.server.types import AppMode
@@ -118,8 +119,11 @@ Your role ends when the plan is finalized. Implementation is handled by the code
 
 
 def _get_default_critic(
-    llm: LLM, _settings: AgentSettings, _agent: Agent
+    llm: LLM, settings: AgentSettings, _agent: Agent | None = None
 ) -> APIBasedCritic | None:
+    if not settings.critic.enabled:
+        return None
+
     base_url = llm.base_url
     api_key = llm.api_key
     if base_url is None or api_key is None:
@@ -129,10 +133,19 @@ def _get_default_critic(
     if not re.match(pattern, base_url):
         return None
 
+    iterative_refinement = None
+    if settings.critic.enable_iterative_refinement:
+        iterative_refinement = IterativeRefinementConfig(
+            success_threshold=settings.critic.threshold,
+            max_iterations=settings.critic.max_refinement_iterations,
+        )
+
     return APIBasedCritic(
-        server_url=f"{base_url.rstrip('/')}/vllm",
+        server_url=f'{base_url.rstrip("/")}/vllm',
         api_key=api_key,
         model_name='critic',
+        mode=settings.critic.mode,
+        iterative_refinement=iterative_refinement,
     )
 
 
@@ -742,18 +755,22 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             Configured LLM instance
         """
         agent_settings = self._get_agent_settings(user, llm_model)
-        llm_settings = agent_settings.llm
-        base_url = llm_settings.base_url
-        if llm_settings.model.startswith('openhands/'):
-            base_url = llm_settings.base_url or self.openhands_provider_base_url
+        llm_settings = agent_settings.llm.model_copy(deep=True)
 
-        return LLM(
-            model=llm_settings.model,
-            base_url=base_url,
-            api_key=llm_settings.api_key,
-            timeout=llm_settings.timeout,
-            max_input_tokens=llm_settings.max_input_tokens,
-            usage_id='agent',
+        if llm_settings.model.startswith('openhands/'):
+            configured_base_url = user.sdk_settings_values.get(
+                'llm.base_url', user.llm_base_url
+            )
+            if configured_base_url is None:
+                llm_settings = llm_settings.model_copy(
+                    update={'base_url': self.openhands_provider_base_url}
+                )
+
+        return LLM.model_validate(
+            {
+                **llm_settings.model_dump(mode='python'),
+                'usage_id': 'agent',
+            }
         )
 
     async def _get_tavily_api_key(self, user: UserInfo) -> str | None:
@@ -990,9 +1007,20 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         Returns:
             Configured Agent instance with context
         """
-        condenser = None
         if agent_settings is None:
             condenser = self._create_condenser(llm, agent_type, condenser_max_size)
+            critic = None
+        else:
+            condenser = (
+                self._create_condenser(
+                    llm,
+                    agent_type,
+                    agent_settings.condenser.max_size,
+                )
+                if agent_settings.condenser.enabled
+                else None
+            )
+            critic = _get_default_critic(llm, agent_settings)
 
         if agent_type == AgentType.PLAN:
             plan_path = None
@@ -1005,6 +1033,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 system_prompt_filename='system_prompt_planning.j2',
                 system_prompt_kwargs={'plan_structure': format_plan_structure()},
                 condenser=condenser,
+                critic=critic,
                 security_analyzer=None,
                 mcp_config=mcp_config,
             )
@@ -1014,25 +1043,9 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 tools=get_default_tools(enable_browser=True),
                 system_prompt_kwargs={'cli_mode': False},
                 condenser=condenser,
+                critic=critic,
                 mcp_config=mcp_config,
             )
-
-        if agent_settings is not None:
-            agent = agent_settings.apply_to_agent(agent, critic_factory=_get_default_critic)
-            if agent_type == AgentType.PLAN and isinstance(
-                agent.condenser, LLMSummarizingCondenser
-            ):
-                agent = agent.model_copy(
-                    update={
-                        'condenser': agent.condenser.model_copy(
-                            update={
-                                'llm': agent.condenser.llm.model_copy(
-                                    update={'usage_id': 'planning_condenser'}
-                                )
-                            }
-                        )
-                    }
-                )
 
         effective_system_message_suffix = system_message_suffix
         if agent_type == AgentType.PLAN:
@@ -1281,7 +1294,12 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         5. Passing plugins to the agent server for remote plugin loading
         """
         user = await self.user_context.get_user_info()
-        workspace = LocalWorkspace(working_dir=working_dir)
+
+        # Compute the project root — this is the repo directory when a repo is
+        # selected, or the sandbox working_dir otherwise.  All tools, hooks,
+        # setup scripts, and plan paths must use this consistently.
+        project_dir = get_project_dir(working_dir, selected_repository)
+        workspace = LocalWorkspace(working_dir=project_dir)
 
         # Set up secrets for all git providers
         secrets = await self._setup_secrets_for_git_providers(user)
@@ -1299,7 +1317,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             user.condenser_max_size,
             secrets=secrets,
             git_provider=git_provider,
-            working_dir=working_dir,
+            working_dir=project_dir,
             agent_settings=agent_settings,
         )
 
@@ -1314,7 +1332,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             sandbox,
             remote_workspace,
             selected_repository,
-            working_dir,
+            project_dir,
             plugins=plugins,
         )
 

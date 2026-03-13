@@ -16,8 +16,8 @@ from pydantic import (
 from openhands.core.config.llm_config import LLMConfig
 from openhands.core.config.mcp_config import MCPConfig
 from openhands.core.config.utils import load_openhands_config
-from openhands.storage.data_models.secrets import Secrets
 from openhands.sdk.settings import AgentSettings
+from openhands.storage.data_models.secrets import Secrets
 
 SDK_LEGACY_FIELD_MAP: dict[str, str] = {
     'llm.model': 'llm_model',
@@ -34,8 +34,6 @@ def _assign_dotted_value(target: dict[str, Any], dotted_key: str, value: Any) ->
     for part in parts[:-1]:
         current = current.setdefault(part, {})
     current[parts[-1]] = value
-
-
 
 
 class Settings(BaseModel):
@@ -73,9 +71,7 @@ class Settings(BaseModel):
     git_user_name: str | None = None
     git_user_email: str | None = None
     v1_enabled: bool = True
-    sdk_settings_values: dict[str, bool | float | int | str | None] = Field(
-        default_factory=dict
-    )
+    sdk_settings_values: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
         validate_assignment=True,

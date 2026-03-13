@@ -34,7 +34,7 @@ dependencies = [
   "dirhash",
   "docker",
   "fastapi",
-  "fastmcp>=3.0.0,<4",
+  "fastmcp>=3,<4",
   "google-api-python-client>=2.164",
   "google-auth-httplib2",
   "google-auth-oauthlib",
@@ -62,6 +62,7 @@ dependencies = [
   "openhands-tools @ git+https://github.com/OpenHands/software-agent-sdk.git@openhands/issue-2228-sdk-settings-schema#subdirectory=openhands-tools",
   "opentelemetry-api>=1.33.1",
   "opentelemetry-exporter-otlp-proto-grpc>=1.33.1",
+  "orjson>=3.11.6",
   "pathspec>=0.12.1",
   "pexpect",
   "pg8000>=1.31.5",
@@ -144,7 +145,7 @@ runtime = [
 
 [tool.poetry]
 name = "openhands-ai"
-version = "1.4.0"
+version = "1.5.0"
 description = "OpenHands: Code Less, Make More"
 authors = [ "OpenHands" ]
 license = "MIT"
@@ -163,6 +164,7 @@ include = [
 [tool.poetry.dependencies]
 python = "^3.12,<3.14"
 authlib = ">=1.6.7"                                # Pinned to fix CVE-2026-28802
+orjson = ">=3.11.6"                                # Pinned to fix CVE-2025-67221
 litellm = ">=1.74.3, !=1.64.4, !=1.67.*"           # avoid 1.64.4 (known bug) & 1.67.* (known bug #10272)
 openai = "2.8.0"                                   # Pin due to litellm incompatibility with >=1.100.0 (BerriAI/litellm#13711)
 aiohttp = ">=3.13.3"                               # Pin to avoid CVE-2025-69223 (vulnerable versions < 3.13.3)
@@ -210,7 +212,7 @@ prompt-toolkit = "^3.0.50"
 poetry = "^2.1.2"
 anyio = "4.9.0"
 pythonnet = "*"
-fastmcp = "^3.0.0"            # Required by openhands-sdk 1.12.0+
+fastmcp = ">=3,<4"
 mcp = "^1.25.0"               # CVE-2025-66416 fix (DNS rebinding protection)
 python-frontmatter = "^1.1.0"
 shellingham = "^1.5.4"
@@ -320,5 +322,3 @@ lint.pydocstyle.convention = "google"
 concurrency = [ "gevent" ]
 relative_files = true
 omit = [ "enterprise/tests/*", "**/test_*" ]
-
-

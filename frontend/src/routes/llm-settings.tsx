@@ -3,6 +3,7 @@ import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 
 import { BrandButton } from "#/components/features/settings/brand-button";
+import { OptionalTag } from "#/components/features/settings/optional-tag";
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
@@ -20,31 +21,48 @@ import {
   buildSdkSettingsPayload,
   getVisibleSettingsSections,
   hasAdvancedSettingsOverrides,
+  hasMinorSettings,
   SettingsDirtyState,
   SettingsFormValues,
 } from "#/utils/sdk-settings-schema";
 import { SettingsFieldSchema } from "#/types/settings";
 import { Typography } from "#/ui/typography";
+import { cn } from "#/utils/utils";
 
 function FieldHelp({ field }: { field: SettingsFieldSchema }) {
-  if (!field.description && !field.help_text) {
+  if (!field.description) {
     return null;
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      {field.description ? (
-        <Typography.Paragraph className="text-tertiary-alt text-xs leading-5">
-          {field.description}
-        </Typography.Paragraph>
-      ) : null}
-      {field.help_text ? (
-        <Typography.Paragraph className="text-tertiary-alt text-xs leading-5">
-          {field.help_text}
-        </Typography.Paragraph>
-      ) : null}
-    </div>
+    <Typography.Paragraph className="text-tertiary-alt text-xs leading-5">
+      {field.description}
+    </Typography.Paragraph>
   );
+}
+
+function isSelectField(field: SettingsFieldSchema): boolean {
+  return field.choices.length > 0;
+}
+
+function isBooleanField(field: SettingsFieldSchema): boolean {
+  return field.value_type === "boolean" && !isSelectField(field);
+}
+
+function isJsonField(field: SettingsFieldSchema): boolean {
+  return field.value_type === "array" || field.value_type === "object";
+}
+
+function getInputType(
+  field: SettingsFieldSchema,
+): React.HTMLInputTypeAttribute {
+  if (field.secret) {
+    return "password";
+  }
+  if (field.value_type === "integer" || field.value_type === "number") {
+    return "number";
+  }
+  return "text";
 }
 
 function SchemaField({
@@ -56,7 +74,7 @@ function SchemaField({
   value: string | boolean;
   onChange: (value: string | boolean) => void;
 }) {
-  if (field.widget === "boolean") {
+  if (isBooleanField(field)) {
     return (
       <div className="flex flex-col gap-1.5">
         <SettingsSwitch
@@ -71,7 +89,7 @@ function SchemaField({
     );
   }
 
-  if (field.widget === "select") {
+  if (isSelectField(field)) {
     return (
       <div className="flex flex-col gap-1.5">
         <SettingsDropdownInput
@@ -79,13 +97,13 @@ function SchemaField({
           name={field.key}
           label={field.label}
           items={field.choices.map((choice) => ({
-            key: choice.value,
+            key: String(choice.value),
             label: choice.label,
           }))}
-          placeholder={field.placeholder ?? undefined}
-          selectedKey={String(value || "") || undefined}
+          selectedKey={value === "" ? undefined : String(value)}
           isClearable={!field.required}
           required={field.required}
+          showOptionalTag={!field.required}
           onSelectionChange={(selectedKey) =>
             onChange(String(selectedKey ?? ""))
           }
@@ -95,16 +113,39 @@ function SchemaField({
     );
   }
 
+  if (isJsonField(field)) {
+    return (
+      <label className="flex flex-col gap-2.5 w-full">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{field.label}</span>
+          {!field.required ? <OptionalTag /> : null}
+        </div>
+        <textarea
+          data-testid={`sdk-settings-${field.key}`}
+          name={field.key}
+          value={String(value ?? "")}
+          required={field.required}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            "bg-tertiary border border-[#717888] min-h-32 w-full rounded-sm p-2 font-mono text-sm",
+            "placeholder:italic placeholder:text-tertiary-alt",
+          )}
+        />
+        <FieldHelp field={field} />
+      </label>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <SettingsInput
         testId={`sdk-settings-${field.key}`}
         name={field.key}
         label={field.label}
-        type={field.widget === "number" ? "number" : field.widget}
+        type={getInputType(field)}
         value={String(value ?? "")}
-        placeholder={field.placeholder ?? undefined}
         required={field.required}
+        showOptionalTag={!field.required}
         onChange={onChange}
         className="w-full"
       />
@@ -123,6 +164,7 @@ function LlmSettingsScreen() {
   const [dirty, setDirty] = React.useState<SettingsDirtyState>({});
 
   const schema = settings?.sdk_settings_schema ?? null;
+  const showAdvancedToggle = hasMinorSettings(schema);
 
   React.useEffect(() => {
     if (!settings?.sdk_settings_schema) {
@@ -166,7 +208,16 @@ function LlmSettingsScreen() {
       return;
     }
 
-    const payload = buildSdkSettingsPayload(schema, values, dirty);
+    let payload: ReturnType<typeof buildSdkSettingsPayload>;
+    try {
+      payload = buildSdkSettingsPayload(schema, values, dirty);
+    } catch (error) {
+      displayErrorToast(
+        error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
+      );
+      return;
+    }
+
     if (Object.keys(payload).length === 0) {
       return;
     }
@@ -207,14 +258,16 @@ function LlmSettingsScreen() {
         >
           {t(I18nKey.SETTINGS$BASIC)}
         </BrandButton>
-        <BrandButton
-          testId="llm-settings-advanced-toggle"
-          variant={view === "advanced" ? "primary" : "secondary"}
-          type="button"
-          onClick={() => setView("advanced")}
-        >
-          {t(I18nKey.SETTINGS$ADVANCED)}
-        </BrandButton>
+        {showAdvancedToggle ? (
+          <BrandButton
+            testId="llm-settings-advanced-toggle"
+            variant={view === "advanced" ? "primary" : "secondary"}
+            type="button"
+            onClick={() => setView("advanced")}
+          >
+            {t(I18nKey.SETTINGS$ADVANCED)}
+          </BrandButton>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-8 pb-20">

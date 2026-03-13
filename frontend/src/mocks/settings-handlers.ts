@@ -13,28 +13,26 @@ const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
         {
           key: "llm.model",
           label: "Model",
-          widget: "text",
           section: "llm",
           section_label: "LLM",
-          order: 10,
+          value_type: "string",
           default: DEFAULT_SETTINGS.llm_model,
           choices: [],
           depends_on: [],
-          advanced: false,
+          prominence: "critical",
           secret: false,
           required: true,
         },
         {
           key: "llm.api_key",
-          label: "API key",
-          widget: "password",
+          label: "API Key",
           section: "llm",
           section_label: "LLM",
-          order: 20,
+          value_type: "string",
           default: null,
           choices: [],
           depends_on: [],
-          advanced: false,
+          prominence: "critical",
           secret: true,
           required: false,
         },
@@ -47,31 +45,29 @@ const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
         {
           key: "critic.enabled",
           label: "Enable critic",
-          widget: "boolean",
           section: "critic",
           section_label: "Critic",
-          order: 10,
+          value_type: "boolean",
           default: false,
           choices: [],
           depends_on: [],
-          advanced: false,
+          prominence: "critical",
           secret: false,
           required: true,
         },
         {
           key: "critic.mode",
-          label: "Critic mode",
-          widget: "select",
+          label: "Mode",
           section: "critic",
           section_label: "Critic",
-          order: 20,
+          value_type: "string",
           default: "finish_and_message",
           choices: [
             { label: "finish_and_message", value: "finish_and_message" },
             { label: "all_actions", value: "all_actions" },
           ],
           depends_on: ["critic.enabled"],
-          advanced: true,
+          prominence: "minor",
           secret: false,
           required: true,
         },
@@ -210,11 +206,13 @@ export const SETTINGS_HANDLERS = [
       for (const [key, value] of Object.entries(body)) {
         if (sdkFieldKeys.has(key)) {
           sdkSettingsValues[key] =
+            value === null ||
             typeof value === "boolean" ||
             typeof value === "number" ||
             typeof value === "string" ||
-            value === null
-              ? value
+            Array.isArray(value) ||
+            (typeof value === "object" && value !== null)
+              ? (value as NonNullable<Settings["sdk_settings_values"]>[string])
               : null;
         }
       }

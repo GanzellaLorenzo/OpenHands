@@ -6,6 +6,9 @@ This repository contains the code for OpenHands, an automated AI software engine
 - Legacy `/api/settings` responses can bridge to the SDK by returning `sdk_settings_schema` from `openhands.sdk.settings` when that package is available. Use this as the compatibility handoff while V1 settings work moves into the SDK and newer clients.
 - The legacy LLM settings screen now renders SDK-backed sections from `sdk_settings_schema` and reads/writes values through the generic `sdk_settings_values` map. Do not mirror SDK-managed fields into the legacy `Settings` model just to render V0 settings.
 - In enterprise mode, preserve `sdk_settings_values` on the storage side too. `enterprise/storage/org_member.py` is the current persistence point for the generic SDK settings blob, and legacy `UserSettings` keeps the same column for migration-path compatibility tests.
+- The SDK settings schema now uses neutral metadata (`value_type`, `prominence`, `choices`, `depends_on`) instead of legacy UI-only fields like `widget`, `advanced`, or `placeholder`. Frontend helpers should derive control types from `value_type`/`choices`, and dotted `sdk_settings_values` may include structured JSON objects/arrays.
+- When constructing runtime `LLM`s for `openhands/*` models, keep explicit user-provided `llm.base_url` overrides, but prefer the app's `openhands_provider_base_url` when the user did not set one. Newer SDK defaults may populate an OpenHands proxy URL automatically, so check persisted user settings rather than `AgentSettings.llm.base_url` alone.
+
 
 
 

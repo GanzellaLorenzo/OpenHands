@@ -94,17 +94,18 @@ def test_settings_preserve_sdk_settings_values():
     settings = Settings(
         llm_api_key='test-key',
         sdk_settings_values={
-            'enable_critic': True,
-            'critic_mode': 'all_actions',
+            'critic.enabled': True,
+            'critic.mode': 'all_actions',
+            'llm.litellm_extra_body': {'metadata': {'tier': 'pro'}},
         },
     )
 
     assert settings.llm_api_key.get_secret_value() == 'test-key'
     assert settings.sdk_settings_values == {
-        'enable_critic': True,
-        'critic_mode': 'all_actions',
+        'critic.enabled': True,
+        'critic.mode': 'all_actions',
+        'llm.litellm_extra_body': {'metadata': {'tier': 'pro'}},
     }
-
 
 
 def test_settings_to_agent_settings_prefers_sdk_values_and_legacy_fallbacks():
@@ -116,6 +117,7 @@ def test_settings_to_agent_settings_prefers_sdk_values_and_legacy_fallbacks():
         condenser_max_size=88,
         sdk_settings_values={
             'llm.model': 'sdk-model',
+            'llm.litellm_extra_body': {'metadata': {'tier': 'enterprise'}},
             'condenser.enabled': False,
             'critic.enabled': True,
             'critic.mode': 'all_actions',
@@ -127,11 +129,11 @@ def test_settings_to_agent_settings_prefers_sdk_values_and_legacy_fallbacks():
     assert agent_settings.llm.model == 'sdk-model'
     assert agent_settings.llm.api_key.get_secret_value() == 'legacy-key'
     assert agent_settings.llm.base_url == 'https://legacy.example.com'
+    assert agent_settings.llm.litellm_extra_body == {'metadata': {'tier': 'enterprise'}}
     assert agent_settings.condenser.enabled is False
     assert agent_settings.condenser.max_size == 88
     assert agent_settings.critic.enabled is True
     assert agent_settings.critic.mode == 'all_actions'
-
 
 
 def test_settings_no_pydantic_frozen_field_warning():

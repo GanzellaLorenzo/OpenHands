@@ -80,7 +80,7 @@ def _get_sdk_secret_field_keys(schema: dict[str, Any] | None) -> set[str]:
 
 def _extract_sdk_settings_values(
     settings: Settings, schema: dict[str, Any] | None
-) -> dict[str, bool | float | int | str | None]:
+) -> dict[str, Any]:
     values = dict(settings.sdk_settings_values)
     secret_field_keys = _get_sdk_secret_field_keys(schema)
 

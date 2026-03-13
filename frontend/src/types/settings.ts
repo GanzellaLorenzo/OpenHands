@@ -39,30 +39,44 @@ export type MCPConfig = {
   shttp_servers: (string | MCPSHTTPServer)[];
 };
 
+export type SettingsChoiceValue = boolean | number | string;
+
 export type SettingsChoice = {
   label: string;
-  value: string;
+  value: SettingsChoiceValue;
 };
 
-export type SettingsValue = boolean | number | string | null;
+export type SettingsValue =
+  | boolean
+  | number
+  | string
+  | null
+  | SettingsValue[]
+  | { [key: string]: SettingsValue };
+
+export type SettingsValueType =
+  | "string"
+  | "integer"
+  | "number"
+  | "boolean"
+  | "array"
+  | "object";
+
+export type SettingProminence = "critical" | "major" | "minor";
 
 export type SettingsFieldSchema = {
   key: string;
   label: string;
   description?: string | null;
-  widget: "text" | "password" | "number" | "boolean" | "select";
   section: string;
   section_label: string;
-  order: number;
-  default?: boolean | number | string | null;
-  placeholder?: string | null;
+  value_type: SettingsValueType;
+  default?: SettingsValue;
   choices: SettingsChoice[];
   depends_on: string[];
-  advanced: boolean;
-  help_text?: string | null;
+  prominence: SettingProminence;
   secret: boolean;
   required: boolean;
-  slash_command?: string | null;
 };
 
 export type SettingsSectionSchema = {
