@@ -861,57 +861,98 @@ export function PendingMessageIndicator({
 
 All changes must pass existing lints and tests. New functionality must include unit tests.
 
-### 5.1 Draft Persistence Foundation (M1)
+This feature is delivered in **2 PRs**, each providing standalone value:
 
-Implement draft persistence with localStorage integration.
+---
 
-**Demo:** User can type a message, refresh the page, and see their draft restored. Switching conversations saves/restores the appropriate draft.
+### PR 1: Draft Persistence
 
-#### 5.1.1 Storage Schema Extension
+**Problem Solved:** Drafts are lost on page refresh, component remount, or conversation switching.
+
+**Value Delivered:** Users can type a message, refresh the page (or experience a timeout/reconnect), and see their draft restored. Switching conversations preserves drafts independently.
+
+#### Files to Create/Modify
+
+**Storage Schema:**
 - [ ] `frontend/src/utils/conversation-local-storage.ts` - Add `draftMessage` and `draftTimestamp` to `ConversationState`
-- [ ] `frontend/__tests__/conversation-local-storage.test.ts` - Add tests for new fields
 
-**Test Expectations:**
+**Draft Persistence Hook:**
+- [ ] `frontend/src/hooks/chat/use-draft-persistence.ts` - New hook for draft save/restore with debounced continuous sync
+
+**Integration:**
+- [ ] `frontend/src/hooks/chat/use-chat-input-logic.ts` - Integrate draft persistence
+- [ ] `frontend/src/hooks/chat/use-chat-submission.ts` - Clear draft on submit
+- [ ] `frontend/src/hooks/chat/use-chat-input-events.ts` - Call handleDraftChange on every input event
+
+#### Test Files
+
+- [ ] `frontend/__tests__/conversation-local-storage.test.ts` - Add tests for new fields
+- [ ] `frontend/__tests__/hooks/chat/use-draft-persistence.test.ts` - Unit tests for hook
+- [ ] `frontend/__tests__/hooks/chat/use-chat-input-logic.test.ts` - Update integration tests
+
+#### Test Expectations
+
+**Storage Schema:**
 - `getConversationState()` returns `draftMessage: null` by default
 - `setConversationState()` with `draftMessage` persists to localStorage
 - `draftTimestamp` is set when `draftMessage` is set
 
-#### 5.1.2 Draft Persistence Hook
-- [ ] `frontend/src/hooks/chat/use-draft-persistence.ts` - New hook for draft save/restore with debounced continuous sync
-- [ ] `frontend/__tests__/hooks/chat/use-draft-persistence.test.ts` - Unit tests
-
-**Test Expectations:**
+**Draft Persistence Hook:**
 - `handleDraftChange("text")` saves to localStorage after 300ms debounce
 - Calling `handleDraftChange()` multiple times only writes once (debounced)
 - `clearDraft()` removes draft from localStorage immediately
 - On mount with existing draft, `chatInputRef.current.innerText` is populated
 - On mount with stale draft (>24 hours), draft is NOT restored
 - Draft is keyed by conversationId - different conversations have independent drafts
+- Debounced draft is flushed immediately on component unmount or conversation switch
 
-#### 5.1.3 Integration
-- [ ] `frontend/src/hooks/chat/use-chat-input-logic.ts` - Integrate draft persistence
-- [ ] `frontend/src/hooks/chat/use-chat-submission.ts` - Clear draft on submit (after message is queued)
-- [ ] `frontend/src/hooks/chat/use-chat-input-events.ts` - Call handleDraftChange on every input event
-- [ ] `frontend/__tests__/hooks/chat/use-chat-input-logic.test.ts` - Update tests
-
-**Test Expectations (Integration):**
+**Integration:**
 - Typing in chat input triggers `handleDraftChange` on each input event
-- Submitting message calls `clearDraft()` 
-- Switching conversations (change conversationId) saves current draft and restores target draft
+- Submitting message calls `clearDraft()`
+- Switching conversations saves current draft and restores target draft
 - Component remount restores draft from localStorage
 - Toast notification shown when draft is restored
 
-### 5.2 Message Queue Store (M2)
+---
 
-Implement the message queue store with localStorage persistence.
+### PR 2: Message Queue with Offline Support
 
-**Demo:** Messages are stored in localStorage and can be inspected via DevTools.
+**Problem Solved:** Messages are lost when WebSocket is disconnected or runtime is starting.
 
-#### 5.2.1 Queue Store
+**Value Delivered:** Users can submit messages while offline, during runtime startup, or when reconnecting. Messages are queued and delivered automatically when connection is available. Visual indicators show message status.
+
+#### Files to Create/Modify
+
+**Queue Store:**
 - [ ] `frontend/src/stores/message-queue-store.ts` - Zustand store with localStorage persistence
-- [ ] `frontend/__tests__/stores/message-queue-store.test.ts` - Unit tests
 
-**Test Expectations:**
+**Queue Processing:**
+- [ ] `frontend/src/hooks/chat/use-message-queue.ts` - Queue processing and retry logic with exponential backoff
+
+**V1 WebSocket Integration:**
+- [ ] `frontend/src/contexts/conversation-websocket-context.tsx` - Modify sendMessage to queue instead of throw when disconnected
+
+**Enable Submit During Startup:**
+- [ ] `frontend/src/components/features/chat/interactive-chat-box.tsx` - Remove `AgentState.LOADING` from disabled states
+- [ ] `frontend/src/hooks/chat/use-chat-input-events.ts` - Ensure Enter submits to queue during startup
+- [ ] `frontend/src/components/features/chat/components/chat-input-container.tsx` - Enable submit button during startup
+
+**Visual Feedback:**
+- [ ] `frontend/src/components/features/chat/pending-message-indicator.tsx` - Status UI component
+- [ ] `frontend/src/components/features/chat/chat-message.tsx` - Show status indicators for queued messages
+
+#### Test Files
+
+- [ ] `frontend/__tests__/stores/message-queue-store.test.ts` - Unit tests for queue store
+- [ ] `frontend/__tests__/hooks/chat/use-message-queue.test.ts` - Unit tests for queue processing
+- [ ] `frontend/__tests__/contexts/conversation-websocket-context.test.tsx` - Tests for queuing behavior
+- [ ] `frontend/__tests__/components/interactive-chat-box.test.tsx` - Tests for submit during startup
+- [ ] `frontend/__tests__/components/features/chat/pending-message-indicator.test.tsx` - Component tests
+- [ ] `frontend/__tests__/components/chat-message.test.tsx` - Update tests for status indicators
+
+#### Test Expectations
+
+**Queue Store:**
 - `enqueueMessage()` adds message with status "pending", retryCount 0, returns unique ID
 - `enqueueMessage()` persists to localStorage (survives page reload)
 - `updateMessageStatus(id, "sending")` updates status for specific message
@@ -919,164 +960,42 @@ Implement the message queue store with localStorage persistence.
 - `removeMessage(id)` removes message from store and localStorage
 - `getMessagesForConversation(convId)` returns only messages for that conversation
 - `getPendingMessages(convId)` returns messages with status "pending" or "failed"
-- `incrementRetryCount(id)` increments retryCount by 1
-- `clearConversationQueue(convId)` removes all messages for that conversation
 - `cleanupStaleMessages()` removes messages older than 24 hours
 - Multiple conversations can have independent queues simultaneously
 
-### 5.3 Queue Processing and V1 WebSocket Integration (M3)
-
-Implement queue processing with retry logic and integrate with V1 WebSocket context.
-
-**Demo:** Disconnect WebSocket, send message, reconnect - message is delivered automatically.
-
-#### 5.3.1 Queue Processing Hook
-- [ ] `frontend/src/hooks/chat/use-message-queue.ts` - Queue processing and retry logic with exponential backoff
-- [ ] `frontend/__tests__/hooks/chat/use-message-queue.test.ts` - Unit tests
-
-**Test Expectations:**
+**Queue Processing:**
 - `submitMessage()` when connected sends directly via WebSocket, returns null
 - `submitMessage()` when disconnected enqueues message, returns queue ID
 - `processQueue()` sends all pending messages when connection becomes available
-- `processQueue()` updates message status to "sending" before send attempt
-- `processQueue()` updates message status to "delivered" on successful send
-- `processQueue()` increments retryCount and sets status to "pending" on failure
 - `processQueue()` uses exponential backoff: 1s, 3s, 10s delays between retries
 - `processQueue()` sets status to "failed" after MAX_RETRIES (3) attempts
 - `retryMessage(id)` resets status to "pending" and triggers processQueue
 - Messages are processed in FIFO order within a conversation
 
-#### 5.3.2 V1 WebSocket Integration
-- [ ] `frontend/src/contexts/conversation-websocket-context.tsx` - Modify sendMessage to queue instead of throw when disconnected
-- [ ] `frontend/__tests__/contexts/conversation-websocket-context.test.tsx` - Add tests for queuing behavior
-
-**Test Expectations:**
+**V1 WebSocket Integration:**
 - `sendMessage()` when WebSocket OPEN sends immediately
 - `sendMessage()` when WebSocket not OPEN queues message (no error thrown)
-- `sendMessage()` returns queue ID when queued, null when sent directly
-- On WebSocket connect (state becomes OPEN), pending messages are automatically sent
+- On WebSocket connect, pending messages are automatically sent
 - Multiple queued messages sent in order on reconnect
 
-#### 5.3.3 Stale Message Cleanup
-- [ ] Call `cleanupStaleMessages()` on app startup and periodically
-- [ ] Add cleanup on conversation load
-
-**Test Expectations:**
-- Stale messages (>24 hours old) are removed on app startup
-- Cleanup runs periodically (e.g., every hour) while app is open
-
-### 5.4 Enable Submit During Runtime Startup (M4)
-
-Allow users to submit messages while the runtime is starting.
-
-**Demo:** Navigate to idle conversation, type message, press Enter - message is queued and sent when runtime is ready.
-
-#### 5.4.1 Input Behavior Changes
-- [ ] `frontend/src/components/features/chat/interactive-chat-box.tsx` - Remove `AgentState.LOADING` from disabled states
-- [ ] `frontend/src/hooks/chat/use-chat-input-events.ts` - Ensure Enter submits to queue during startup
-- [ ] `frontend/__tests__/components/interactive-chat-box.test.tsx` - Add tests for submit during startup
-
-**Test Expectations:**
-- When `AgentState.LOADING`, submit button is NOT disabled (changed from current behavior)
+**Submit During Startup:**
+- When `AgentState.LOADING`, submit button is NOT disabled
 - When `AgentState.LOADING`, pressing Enter submits message (not creates newline)
 - When `AgentState.AWAITING_USER_CONFIRMATION`, submit button IS disabled (unchanged)
-- Submitted message during LOADING state is queued (verified in queue store)
+- Submitted message during LOADING state is queued
 - Input is cleared after submit during LOADING state
 
-#### 5.4.2 Submit Button State
-- [ ] `frontend/src/components/features/chat/components/chat-input-container.tsx` - Enable submit button during runtime startup
-- [ ] `frontend/__tests__/components/features/chat/chat-input-container.test.tsx` - Add tests
-
-**Test Expectations:**
-- Submit button enabled when runtime status is "STARTING"
-- Submit button enabled when WebSocket status is "CONNECTING"
-- Submit button disabled only for blocking states (AWAITING_USER_CONFIRMATION)
-- Visual indication that message will be queued (optional: button tooltip or subtle styling)
-
-### 5.5 Visual Feedback (M5)
-
-Add UI components for message status indication.
-
-**Demo:** Users see visual indicators for queued, sending, failed, and delivered messages.
-
-#### 5.5.1 Status Indicator Component
-- [ ] `frontend/src/components/features/chat/pending-message-indicator.tsx` - Status UI with Queued/Sending/Failed/Delivered states
-- [ ] `frontend/__tests__/components/features/chat/pending-message-indicator.test.tsx` - Tests
-
-**Test Expectations:**
+**Visual Feedback:**
 - Renders spinner + "Queued" text for status="pending"
-- Renders spinner + "Sending..." text for status="sending"  
+- Renders spinner + "Sending..." text for status="sending"
 - Renders error icon + "Failed" + Retry button for status="failed"
-- Renders checkmark + "Delivered" for status="delivered"
 - Retry button calls `onRetry` callback when clicked
-- Component returns null for unknown status
-
-#### 5.5.2 Chat Message Integration
-- [ ] `frontend/src/components/features/chat/chat-message.tsx` - Show status indicators for queued messages
-- [ ] `frontend/__tests__/components/chat-message.test.tsx` - Update tests
-
-**Test Expectations:**
-- User messages from queue store show PendingMessageIndicator
-- Status indicator updates when queue store status changes
-- Retry button on failed message triggers retryMessage()
-- Delivered indicator disappears after brief delay (or stays for history)
-
-#### 5.5.3 Optimistic Message Update
-- [ ] Update optimistic user message display to show queue status
-- [ ] Integrate with existing `optimisticUserMessage` pattern
-
-**Test Expectations:**
-- Optimistic message shows "Queued" status when message is queued
-- Status transitions: Queued → Sending → Delivered (or Failed)
-- Optimistic message removed when server confirms receipt (existing behavior)
-
-### 5.6 Polish and Edge Cases (M6)
-
-Handle edge cases and improve user experience.
-
-**Demo:** Full end-to-end flow works smoothly with proper error handling.
-
-#### 5.6.1 Edge Case Handling
-- [ ] Handle conversation switching (save current draft, restore target draft)
-- [ ] Handle stale drafts (24-hour expiry)
-- [ ] Handle queue size limits (prevent unbounded growth)
-- [ ] Handle stale queued messages (age-based cleanup)
-- [ ] Handle message ordering guarantees (FIFO within conversation)
-- [ ] Handle queue cleanup on conversation close/delete
-- [ ] Flush debounced draft save on unmount/conversation switch
-
-**Test Expectations:**
-- Conversation switch: current draft saved before switch, target draft restored after
-- Draft older than 24 hours is not restored, is cleared from localStorage
-- Queue rejects new messages if queue size exceeds limit (e.g., 50 messages)
-- Queue cleanup removes all messages for deleted conversation
-- Debounced draft is flushed immediately on component unmount
-- Debounced draft is flushed immediately on conversation ID change
-- Messages within same conversation maintain FIFO order after retries
-
-#### 5.6.2 Error Recovery
-- [ ] Handle retry failures gracefully with user-facing retry button
-- [ ] Show clear error messages for failed messages
-- [ ] Allow manual retry of failed messages
-
-**Test Expectations:**
-- Failed message shows "Retry" button
-- Clicking "Retry" resets status to "pending" and attempts resend
-- Error message from last failure is displayed to user
-- After MAX_RETRIES, message stays in "failed" state until manual retry
-
-#### 5.6.3 Accessibility
-- [ ] Add ARIA labels to status indicators
-- [ ] Ensure keyboard navigation for retry buttons
-- [ ] Screen reader announcements for status changes (queued, sent, failed)
-
-**Test Expectations:**
 - Status indicator has `aria-label` describing current state
-- Retry button is focusable and activatable via keyboard (Enter/Space)
-- Status changes trigger `aria-live` announcement for screen readers
-- Failed state uses `role="alert"` for immediate announcement
+- Retry button is keyboard accessible
 
-#### 5.6.4 Integration Tests (React Testing Library + MSW)
+---
+
+### Integration Test Examples (React Testing Library + MSW)
 
 Integration tests can be written using the existing test infrastructure without Playwright:
 
