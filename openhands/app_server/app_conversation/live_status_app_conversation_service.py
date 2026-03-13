@@ -41,6 +41,7 @@ from openhands.app_server.app_conversation.app_conversation_service import (
 )
 from openhands.app_server.app_conversation.app_conversation_service_base import (
     AppConversationServiceBase,
+    get_project_dir,
 )
 from openhands.app_server.app_conversation.app_conversation_start_task_service import (
     AppConversationStartTaskService,
@@ -77,7 +78,6 @@ from openhands.app_server.utils.llm_metadata import (
     get_llm_metadata,
     should_set_litellm_extra_body,
 )
-from openhands.experiments.experiment_manager import ExperimentManagerImpl
 from openhands.integrations.provider import ProviderType
 from openhands.integrations.service_types import SuggestedTask
 from openhands.sdk import Agent, AgentContext, LocalWorkspace
@@ -1140,7 +1140,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         working_dir: str,
         plugins: list[PluginSpec] | None = None,
     ) -> StartConversationRequest:
-        """Finalize the conversation request with experiment variants and skills.
+        """Finalize the conversation request with skills and metadata.
 
         Args:
             agent: The configured agent
@@ -1161,13 +1161,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         # Generate conversation ID if not provided
         conversation_id = conversation_id or uuid4()
 
-        # Apply experiment variants
-        agent = ExperimentManagerImpl.run_agent_variant_tests__v1(
-            user.id, conversation_id, agent
-        )
-
         # Update agent's LLM with litellm_extra_body metadata for tracing
-        # This is done after experiment variants to ensure the final LLM config is used
         agent = self._update_agent_with_llm_metadata(agent, conversation_id, user.id)
 
         # Load and merge skills if remote workspace is available
@@ -1230,11 +1224,16 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         1. Setting up git provider secrets
         2. Configuring LLM and MCP settings
         3. Creating an agent with appropriate context
-        4. Finalizing the request with skills and experiment variants
+        4. Finalizing the request with skills and metadata
         5. Passing plugins to the agent server for remote plugin loading
         """
         user = await self.user_context.get_user_info()
-        workspace = LocalWorkspace(working_dir=working_dir)
+
+        # Compute the project root — this is the repo directory when a repo is
+        # selected, or the sandbox working_dir otherwise.  All tools, hooks,
+        # setup scripts, and plan paths must use this consistently.
+        project_dir = get_project_dir(working_dir, selected_repository)
+        workspace = LocalWorkspace(working_dir=project_dir)
 
         # Set up secrets for all git providers
         secrets = await self._setup_secrets_for_git_providers(user)
@@ -1251,7 +1250,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             user.condenser_max_size,
             secrets=secrets,
             git_provider=git_provider,
-            working_dir=working_dir,
+            working_dir=project_dir,
         )
 
         # Finalize and return the conversation request
@@ -1265,7 +1264,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             sandbox,
             remote_workspace,
             selected_repository,
-            working_dir,
+            project_dir,
             plugins=plugins,
         )
 

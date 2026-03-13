@@ -16,10 +16,15 @@ from keycloak.exceptions import (
     KeycloakError,
     KeycloakPostError,
 )
+from pydantic import BaseModel
 from server.auth.auth_error import ExpiredError
 from server.auth.constants import (
     BITBUCKET_APP_CLIENT_ID,
     BITBUCKET_APP_CLIENT_SECRET,
+    BITBUCKET_DATA_CENTER_CLIENT_ID,
+    BITBUCKET_DATA_CENTER_CLIENT_SECRET,
+    BITBUCKET_DATA_CENTER_HOST,
+    BITBUCKET_DATA_CENTER_TOKEN_URL,
     DUPLICATE_EMAIL_CHECK,
     GITHUB_APP_CLIENT_ID,
     GITHUB_APP_CLIENT_SECRET,
@@ -48,6 +53,30 @@ from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_
 from openhands.integrations.service_types import ProviderType
 from openhands.server.types import SessionExpiredError
 from openhands.utils.http_session import httpx_verify_option
+
+
+class KeycloakUserInfo(BaseModel):
+    """Pydantic model for Keycloak UserInfo endpoint response.
+
+    Based on OIDC standard claims. 'sub' is always required per OIDC spec.
+    Additional fields from Keycloak are captured via model_config extra='allow'.
+    """
+
+    model_config = {'extra': 'allow'}
+
+    sub: str
+    name: str | None = None
+    given_name: str | None = None
+    family_name: str | None = None
+    preferred_username: str | None = None
+    email: str | None = None
+    email_verified: bool | None = None
+    picture: str | None = None
+    attributes: dict[str, list[str]] | None = None
+    identity_provider: str | None = None
+    company: str | None = None
+    roles: list[str] | None = None
+
 
 # HTTP timeout for external IDP calls (in seconds)
 # This prevents indefinite blocking if an IDP is slow or unresponsive
@@ -141,22 +170,22 @@ class TokenManager:
                 new_keycloak_tokens['refresh_token'],
             )
 
-    # UserInfo from Keycloak return a dictionary with the following format:
-    # {
-    # 'sub': '248289761001',
-    # 'name': 'Jane Doe',
-    # 'given_name': 'Jane',
-    # 'family_name': 'Doe',
-    # 'preferred_username': 'j.doe',
-    # 'email': 'janedoe@example.com',
-    # 'picture': 'http://example.com/janedoe/me.jpg'
-    # 'github_id': '354322532'
-    # }
-    async def get_user_info(self, access_token: str) -> dict:
-        if not access_token:
-            return {}
+    async def get_user_info(self, access_token: str) -> KeycloakUserInfo:
+        """Get user info from Keycloak userinfo endpoint.
+
+        Args:
+            access_token: A valid Keycloak access token
+
+        Returns:
+            KeycloakUserInfo with user claims. 'sub' is always present per OIDC spec.
+
+        Raises:
+            KeycloakAuthenticationError: If the token is invalid
+            ValidationError: If the response is missing the required 'sub' field
+        """
         user_info = await get_keycloak_openid(self.external).a_userinfo(access_token)
-        return user_info
+        # Pydantic validation will raise ValidationError if 'sub' is missing
+        return KeycloakUserInfo.model_validate(user_info)
 
     @retry(
         stop=stop_after_attempt(2),
@@ -270,8 +299,8 @@ class TokenManager:
     ) -> str:
         # Get user info to determine user_id and idp
         user_info = await self.get_user_info(access_token=access_token)
-        user_id = user_info.get('sub')
-        username = user_info.get('preferred_username')
+        user_id = user_info.sub
+        username = user_info.preferred_username
         logger.info(f'Getting token for user {username} and IDP {idp}')
         token_store = await AuthTokenStore.get_instance(
             keycloak_user_id=user_id, idp=idp
@@ -354,6 +383,8 @@ class TokenManager:
             return await self._refresh_gitlab_token(refresh_token)
         elif idp == ProviderType.BITBUCKET:
             return await self._refresh_bitbucket_token(refresh_token)
+        elif idp == ProviderType.BITBUCKET_DATA_CENTER:
+            return await self._refresh_bitbucket_data_center_token(refresh_token)
         else:
             raise ValueError(f'Unsupported IDP: {idp}')
 
@@ -431,6 +462,33 @@ class TokenManager:
             response = await client.post(url, data=data, headers=headers)
             response.raise_for_status()
             logger.info('Successfully refreshed Bitbucket token')
+
+            data = response.json()
+            return await self._parse_refresh_response(data)
+
+    async def _refresh_bitbucket_data_center_token(
+        self, refresh_token: str
+    ) -> dict[str, str | int]:
+        if not BITBUCKET_DATA_CENTER_HOST:
+            raise ValueError(
+                'BITBUCKET_DATA_CENTER_HOST is not configured. '
+                'Set the BITBUCKET_DATA_CENTER_HOST environment variable.'
+            )
+        url = BITBUCKET_DATA_CENTER_TOKEN_URL
+        logger.info(f'Refreshing Bitbucket Data Center token with URL: {url}')
+
+        payload = {
+            'client_id': BITBUCKET_DATA_CENTER_CLIENT_ID,
+            'client_secret': BITBUCKET_DATA_CENTER_CLIENT_SECRET,
+            'refresh_token': refresh_token,
+            'grant_type': 'refresh_token',
+        }
+        async with httpx.AsyncClient(
+            verify=httpx_verify_option(), timeout=IDP_HTTP_TIMEOUT
+        ) as client:
+            response = await client.post(url, data=payload)
+            response.raise_for_status()
+            logger.info('Successfully refreshed Bitbucket Data Center token')
 
             data = response.json()
             return await self._parse_refresh_response(data)
