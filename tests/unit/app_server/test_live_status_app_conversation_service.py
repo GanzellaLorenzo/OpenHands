@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import zipfile
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
@@ -13,6 +14,7 @@ from pydantic import SecretStr
 from openhands.agent_server.models import (
     SendMessageRequest,
     StartConversationRequest,
+    TextContent,
 )
 from openhands.app_server.app_conversation.app_conversation_models import (
     AgentType,
@@ -20,6 +22,7 @@ from openhands.app_server.app_conversation.app_conversation_models import (
     AppConversationStartRequest,
 )
 from openhands.app_server.app_conversation.live_status_app_conversation_service import (
+    PLANNING_AGENT_INSTRUCTION,
     LiveStatusAppConversationService,
 )
 from openhands.app_server.sandbox.sandbox_models import (
@@ -31,12 +34,31 @@ from openhands.app_server.sandbox.sandbox_models import (
 from openhands.app_server.sandbox.sandbox_spec_models import SandboxSpecInfo
 from openhands.app_server.user.user_context import UserContext
 from openhands.integrations.provider import ProviderToken, ProviderType
+from openhands.integrations.service_types import SuggestedTask, TaskType
 from openhands.sdk import Agent, Event
 from openhands.sdk.llm import LLM
 from openhands.sdk.secret import LookupSecret, StaticSecret
 from openhands.sdk.workspace import LocalWorkspace
 from openhands.sdk.workspace.remote.async_remote_workspace import AsyncRemoteWorkspace
 from openhands.server.types import AppMode
+from openhands.storage.data_models.conversation_metadata import ConversationTrigger
+
+# Env var used by openhands SDK LLM to skip context-window validation (e.g. for gpt-4 in tests)
+_ALLOW_SHORT_CONTEXT_WINDOWS = 'ALLOW_SHORT_CONTEXT_WINDOWS'
+
+
+@pytest.fixture(autouse=True)
+def allow_short_context_windows():
+    """Allow small context windows so unit tests can create LLM with gpt-4 etc."""
+    old = os.environ.pop(_ALLOW_SHORT_CONTEXT_WINDOWS, None)
+    os.environ[_ALLOW_SHORT_CONTEXT_WINDOWS] = 'true'
+    try:
+        yield
+    finally:
+        if old is not None:
+            os.environ[_ALLOW_SHORT_CONTEXT_WINDOWS] = old
+        else:
+            os.environ.pop(_ALLOW_SHORT_CONTEXT_WINDOWS, None)
 
 
 class TestLiveStatusAppConversationService:
@@ -94,7 +116,62 @@ class TestLiveStatusAppConversationService:
         self.mock_sandbox.id = uuid4()
         self.mock_sandbox.status = SandboxStatus.RUNNING
 
-    @pytest.mark.asyncio
+    def test_apply_suggested_task_sets_prompt_and_trigger(self):
+        """Test suggested task prompts populate initial message and trigger."""
+        suggested_task = SuggestedTask(
+            git_provider=ProviderType.GITHUB,
+            task_type=TaskType.UNRESOLVED_COMMENTS,
+            repo='owner/repo',
+            issue_number=42,
+            title='Handle review comments',
+        )
+        request = AppConversationStartRequest(suggested_task=suggested_task)
+
+        self.service._apply_suggested_task(request)
+
+        assert request.initial_message is not None
+        assert (
+            request.initial_message.content[0].text
+            == suggested_task.get_prompt_for_task()
+        )
+        assert request.trigger == ConversationTrigger.SUGGESTED_TASK
+        assert request.selected_repository == suggested_task.repo
+        assert request.git_provider == suggested_task.git_provider
+
+    def test_apply_suggested_task_raises_if_initial_message_present(self):
+        suggested_task = SuggestedTask(
+            repo='foo/bar',
+            git_provider=ProviderType.GITHUB,
+            title='Some title',
+            task_type=TaskType.OPEN_ISSUE,
+            issue_number=123,
+        )
+
+        request = AppConversationStartRequest(
+            suggested_task=suggested_task,
+            initial_message=SendMessageRequest(
+                role='user',
+                content=[TextContent(text='User provided message')],
+            ),
+        )
+
+        with pytest.raises(ValueError, match='initial_message cannot be provided'):
+            self.service._apply_suggested_task(request)
+
+    def test_apply_suggested_task_raises_if_prompt_empty(self):
+        suggested_task = SuggestedTask(
+            repo='foo/bar',
+            git_provider=ProviderType.GITHUB,
+            title='Some title',
+            task_type=TaskType.OPEN_ISSUE,
+            issue_number=123,
+        )
+        request = AppConversationStartRequest(suggested_task=suggested_task)
+
+        with patch.object(SuggestedTask, 'get_prompt_for_task', return_value=''):
+            with pytest.raises(ValueError, match='empty prompt'):
+                self.service._apply_suggested_task(request)
+
     async def test_setup_secrets_for_git_providers_no_provider_tokens(self):
         """Test _setup_secrets_for_git_providers with no provider tokens."""
         # Arrange
@@ -825,28 +902,147 @@ class TestLiveStatusAppConversationService:
                 mock_llm, AgentType.DEFAULT, self.mock_user.condenser_max_size
             )
 
-    @pytest.mark.asyncio
     @patch(
-        'openhands.app_server.app_conversation.live_status_app_conversation_service.ExperimentManagerImpl'
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.get_planning_tools'
     )
-    async def test_finalize_conversation_request_with_skills(
-        self, mock_experiment_manager
+    @patch(
+        'openhands.app_server.app_conversation.app_conversation_service_base.AppConversationServiceBase._create_condenser'
+    )
+    @patch(
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.format_plan_structure'
+    )
+    def test_create_agent_with_context_planning_agent_applies_instruction(
+        self, mock_format_plan, mock_create_condenser, mock_get_tools
     ):
-        """Test _finalize_conversation_request with skills loading."""
+        """Test _create_agent_with_context applies PLANNING_AGENT_INSTRUCTION for plan agents."""
         # Arrange
-        mock_agent = Mock(spec=Agent)
+        mock_llm = Mock(spec=LLM)
+        mock_llm.model_copy.return_value = mock_llm
+        mock_get_tools.return_value = []
+        mock_condenser = Mock()
+        mock_create_condenser.return_value = mock_condenser
+        mock_format_plan.return_value = 'test_plan_structure'
+        mcp_config = {}
 
+        # Act
+        with patch(
+            'openhands.app_server.app_conversation.live_status_app_conversation_service.Agent'
+        ) as mock_agent_class:
+            mock_agent_instance = Mock()
+            mock_agent_instance.model_copy.return_value = mock_agent_instance
+            mock_agent_class.return_value = mock_agent_instance
+
+            self.service._create_agent_with_context(
+                mock_llm,
+                AgentType.PLAN,
+                None,  # No existing suffix
+                mcp_config,
+                self.mock_user.condenser_max_size,
+            )
+
+            # Assert - verify model_copy was called with agent_context containing planning instruction
+            model_copy_call = mock_agent_instance.model_copy.call_args
+            agent_context = model_copy_call[1]['update']['agent_context']
+            assert agent_context.system_message_suffix == PLANNING_AGENT_INSTRUCTION
+
+    @patch(
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.get_planning_tools'
+    )
+    @patch(
+        'openhands.app_server.app_conversation.app_conversation_service_base.AppConversationServiceBase._create_condenser'
+    )
+    @patch(
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.format_plan_structure'
+    )
+    def test_create_agent_with_context_planning_agent_prepends_to_existing_suffix(
+        self, mock_format_plan, mock_create_condenser, mock_get_tools
+    ):
+        """Test _create_agent_with_context prepends planning instruction to existing suffix."""
+        # Arrange
+        mock_llm = Mock(spec=LLM)
+        mock_llm.model_copy.return_value = mock_llm
+        mock_get_tools.return_value = []
+        mock_condenser = Mock()
+        mock_create_condenser.return_value = mock_condenser
+        mock_format_plan.return_value = 'test_plan_structure'
+        mcp_config = {}
+        existing_suffix = 'Custom user instruction from integration'
+
+        # Act
+        with patch(
+            'openhands.app_server.app_conversation.live_status_app_conversation_service.Agent'
+        ) as mock_agent_class:
+            mock_agent_instance = Mock()
+            mock_agent_instance.model_copy.return_value = mock_agent_instance
+            mock_agent_class.return_value = mock_agent_instance
+
+            self.service._create_agent_with_context(
+                mock_llm,
+                AgentType.PLAN,
+                existing_suffix,
+                mcp_config,
+                self.mock_user.condenser_max_size,
+            )
+
+            # Assert - verify planning instruction is prepended to existing suffix
+            model_copy_call = mock_agent_instance.model_copy.call_args
+            agent_context = model_copy_call[1]['update']['agent_context']
+            assert agent_context.system_message_suffix.startswith(
+                PLANNING_AGENT_INSTRUCTION
+            )
+            assert existing_suffix in agent_context.system_message_suffix
+
+    @patch(
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools'
+    )
+    @patch(
+        'openhands.app_server.app_conversation.app_conversation_service_base.AppConversationServiceBase._create_condenser'
+    )
+    def test_create_agent_with_context_default_agent_no_planning_instruction(
+        self, mock_create_condenser, mock_get_tools
+    ):
+        """Test _create_agent_with_context does NOT add planning instruction for default agent."""
+        # Arrange
+        mock_llm = Mock(spec=LLM)
+        mock_llm.model_copy.return_value = mock_llm
+        mock_get_tools.return_value = []
+        mock_condenser = Mock()
+        mock_create_condenser.return_value = mock_condenser
+        mcp_config = {}
+
+        # Act
+        with patch(
+            'openhands.app_server.app_conversation.live_status_app_conversation_service.Agent'
+        ) as mock_agent_class:
+            mock_agent_instance = Mock()
+            mock_agent_instance.model_copy.return_value = mock_agent_instance
+            mock_agent_class.return_value = mock_agent_instance
+
+            self.service._create_agent_with_context(
+                mock_llm,
+                AgentType.DEFAULT,
+                None,
+                mcp_config,
+                self.mock_user.condenser_max_size,
+            )
+
+            # Assert - verify no planning instruction for default agent
+            model_copy_call = mock_agent_instance.model_copy.call_args
+            agent_context = model_copy_call[1]['update']['agent_context']
+            assert agent_context.system_message_suffix is None
+
+    @pytest.mark.asyncio
+    async def test_finalize_conversation_request_with_skills(self):
+        """Test _finalize_conversation_request with skills loading."""
         # Create mock LLM with required attributes for _update_agent_with_llm_metadata
         mock_llm = Mock(spec=LLM)
         mock_llm.model = 'gpt-4'  # Non-openhands model, so no metadata update
         mock_llm.usage_id = 'agent'
 
-        mock_updated_agent = Mock(spec=Agent)
-        mock_updated_agent.llm = mock_llm
-        mock_updated_agent.condenser = None  # No condenser
-        mock_experiment_manager.run_agent_variant_tests__v1.return_value = (
-            mock_updated_agent
-        )
+        # Arrange
+        mock_agent = Mock(spec=Agent)
+        mock_agent.llm = mock_llm
+        mock_agent.condenser = None  # No condenser
 
         conversation_id = uuid4()
         workspace = LocalWorkspace(working_dir='/test')
@@ -855,9 +1051,7 @@ class TestLiveStatusAppConversationService:
         remote_workspace = Mock(spec=AsyncRemoteWorkspace)
 
         # Mock the skills loading method
-        self.service._load_skills_and_update_agent = AsyncMock(
-            return_value=mock_updated_agent
-        )
+        self.service._load_skills_and_update_agent = AsyncMock(return_value=mock_agent)
 
         # Act
         result = await self.service._finalize_conversation_request(
@@ -876,44 +1070,24 @@ class TestLiveStatusAppConversationService:
         # Assert
         assert isinstance(result, StartConversationRequest)
         assert result.conversation_id == conversation_id
-        assert result.agent == mock_updated_agent
         assert result.workspace == workspace
         assert result.initial_message == initial_message
         assert result.secrets == secrets
 
-        mock_experiment_manager.run_agent_variant_tests__v1.assert_called_once_with(
-            self.mock_user.id, conversation_id, mock_agent
-        )
-        self.service._load_skills_and_update_agent.assert_called_once_with(
-            self.mock_sandbox,
-            mock_updated_agent,
-            remote_workspace,
-            'test_repo',
-            '/test/dir',
-        )
+        self.service._load_skills_and_update_agent.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch(
-        'openhands.app_server.app_conversation.live_status_app_conversation_service.ExperimentManagerImpl'
-    )
-    async def test_finalize_conversation_request_without_skills(
-        self, mock_experiment_manager
-    ):
+    async def test_finalize_conversation_request_without_skills(self):
         """Test _finalize_conversation_request without remote workspace (no skills)."""
-        # Arrange
-        mock_agent = Mock(spec=Agent)
-
         # Create mock LLM with required attributes for _update_agent_with_llm_metadata
         mock_llm = Mock(spec=LLM)
         mock_llm.model = 'gpt-4'  # Non-openhands model, so no metadata update
         mock_llm.usage_id = 'agent'
 
-        mock_updated_agent = Mock(spec=Agent)
-        mock_updated_agent.llm = mock_llm
-        mock_updated_agent.condenser = None  # No condenser
-        mock_experiment_manager.run_agent_variant_tests__v1.return_value = (
-            mock_updated_agent
-        )
+        # Arrange
+        mock_agent = Mock(spec=Agent)
+        mock_agent.llm = mock_llm
+        mock_agent.condenser = None  # No condenser
 
         workspace = LocalWorkspace(working_dir='/test')
         secrets = {'test': StaticSecret(value='secret')}
@@ -935,31 +1109,18 @@ class TestLiveStatusAppConversationService:
         # Assert
         assert isinstance(result, StartConversationRequest)
         assert isinstance(result.conversation_id, UUID)
-        assert result.agent == mock_updated_agent
-        mock_experiment_manager.run_agent_variant_tests__v1.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch(
-        'openhands.app_server.app_conversation.live_status_app_conversation_service.ExperimentManagerImpl'
-    )
-    async def test_finalize_conversation_request_skills_loading_fails(
-        self, mock_experiment_manager
-    ):
+    async def test_finalize_conversation_request_skills_loading_fails(self):
         """Test _finalize_conversation_request when skills loading fails."""
-        # Arrange
-        mock_agent = Mock(spec=Agent)
-
         # Create mock LLM with required attributes for _update_agent_with_llm_metadata
         mock_llm = Mock(spec=LLM)
         mock_llm.model = 'gpt-4'  # Non-openhands model, so no metadata update
         mock_llm.usage_id = 'agent'
 
-        mock_updated_agent = Mock(spec=Agent)
-        mock_updated_agent.llm = mock_llm
-        mock_updated_agent.condenser = None  # No condenser
-        mock_experiment_manager.run_agent_variant_tests__v1.return_value = (
-            mock_updated_agent
-        )
+        mock_agent = Mock(spec=Agent)
+        mock_agent.llm = mock_llm
+        mock_agent.condenser = None  # No condenser
 
         workspace = LocalWorkspace(working_dir='/test')
         secrets = {'test': StaticSecret(value='secret')}
@@ -989,9 +1150,6 @@ class TestLiveStatusAppConversationService:
 
             # Assert
             assert isinstance(result, StartConversationRequest)
-            assert (
-                result.agent == mock_updated_agent
-            )  # Should still use the experiment-modified agent
             mock_logger.warning.assert_called_once()
 
     @pytest.mark.asyncio
@@ -1041,6 +1199,9 @@ class TestLiveStatusAppConversationService:
         self.service._configure_llm_and_mcp.assert_called_once_with(
             self.mock_user, 'gpt-4'
         )
+        # When selected_repository='test/repo', project_dir is resolved
+        # to '/test/dir/repo' via get_project_dir.  All downstream calls
+        # (agent context, workspace, skills) must use this path.
         self.service._create_agent_with_context.assert_called_once_with(
             mock_llm,
             AgentType.DEFAULT,
@@ -1049,7 +1210,7 @@ class TestLiveStatusAppConversationService:
             self.mock_user.condenser_max_size,
             secrets=mock_secrets,
             git_provider=ProviderType.GITHUB,
-            working_dir='/test/dir',
+            working_dir='/test/dir/repo',
         )
         self.service._finalize_conversation_request.assert_called_once()
 
@@ -1831,6 +1992,225 @@ class TestLiveStatusAppConversationService:
         assert stdio_server['command'] == 'npx'
         assert stdio_server['env'] == {'TOKEN': 'value'}
 
+    # ------------------------------------------------------------------ #
+    #  Regression tests: workspace.working_dir == project_dir             #
+    # ------------------------------------------------------------------ #
+
+    def test_get_project_dir_with_repo(self):
+        """get_project_dir appends repo name to working_dir."""
+        from openhands.app_server.app_conversation.app_conversation_service_base import (
+            get_project_dir,
+        )
+
+        assert (
+            get_project_dir('/workspace/project', 'OpenHands/software-agent-sdk')
+            == '/workspace/project/software-agent-sdk'
+        )
+        assert get_project_dir('/w', 'org/repo-name') == '/w/repo-name'
+
+    def test_get_project_dir_without_repo(self):
+        """get_project_dir returns working_dir unchanged when no repo selected."""
+        from openhands.app_server.app_conversation.app_conversation_service_base import (
+            get_project_dir,
+        )
+
+        assert get_project_dir('/workspace/project', None) == '/workspace/project'
+        assert get_project_dir('/workspace/project', '') == '/workspace/project'
+
+    @pytest.mark.asyncio
+    async def test_build_request_workspace_uses_project_dir(self):
+        """workspace.working_dir in StartConversationRequest must equal project_dir.
+
+        This is the root cause of the V1 hook-stop bug: if workspace.working_dir
+        points to the sandbox mount root (/workspace/project) instead of the
+        cloned repo (/workspace/project/<repo>), the agent's CWD is wrong and
+        .openhands/hooks/on_stop.sh is not found.
+        """
+        self.mock_user_context.get_user_info.return_value = self.mock_user
+
+        mock_secrets = {'GITHUB_TOKEN': Mock()}
+        mock_llm = Mock(spec=LLM)
+        mock_agent = Mock(spec=Agent)
+
+        self.service._setup_secrets_for_git_providers = AsyncMock(
+            return_value=mock_secrets
+        )
+        self.service._configure_llm_and_mcp = AsyncMock(return_value=(mock_llm, {}))
+        self.service._create_agent_with_context = Mock(return_value=mock_agent)
+
+        captured = {}
+
+        async def capture_finalize(
+            agent, conversation_id, user, workspace, *args, **kwargs
+        ):
+            captured['workspace_working_dir'] = workspace.working_dir
+            return Mock(spec=StartConversationRequest)
+
+        self.service._finalize_conversation_request = AsyncMock(
+            side_effect=capture_finalize
+        )
+
+        await self.service._build_start_conversation_request_for_user(
+            sandbox=self.mock_sandbox,
+            initial_message=None,
+            system_message_suffix=None,
+            git_provider=None,
+            working_dir='/workspace/project',
+            selected_repository='OpenHands/software-agent-sdk',
+        )
+
+        assert (
+            captured['workspace_working_dir'] == '/workspace/project/software-agent-sdk'
+        ), 'workspace.working_dir must point to the repo root, not the sandbox mount'
+
+    @pytest.mark.asyncio
+    async def test_build_request_no_repo_workspace_unchanged(self):
+        """Without selected_repository, workspace.working_dir == sandbox working_dir."""
+        self.mock_user_context.get_user_info.return_value = self.mock_user
+
+        self.service._setup_secrets_for_git_providers = AsyncMock(return_value={})
+        self.service._configure_llm_and_mcp = AsyncMock(
+            return_value=(Mock(spec=LLM), {})
+        )
+        self.service._create_agent_with_context = Mock(return_value=Mock(spec=Agent))
+
+        captured = {}
+
+        async def capture_finalize(
+            agent, conversation_id, user, workspace, *args, **kwargs
+        ):
+            captured['workspace_working_dir'] = workspace.working_dir
+            return Mock(spec=StartConversationRequest)
+
+        self.service._finalize_conversation_request = AsyncMock(
+            side_effect=capture_finalize
+        )
+
+        await self.service._build_start_conversation_request_for_user(
+            sandbox=self.mock_sandbox,
+            initial_message=None,
+            system_message_suffix=None,
+            git_provider=None,
+            working_dir='/workspace/project',
+            selected_repository=None,
+        )
+
+        assert captured['workspace_working_dir'] == '/workspace/project'
+
+    @pytest.mark.asyncio
+    async def test_search_app_conversations_with_sandbox_id_filter(self):
+        """Test that search_app_conversations passes sandbox_id__eq to the info service.
+
+        This verifies that the sandbox_id filter is correctly propagated through
+        the service layer to the underlying info service.
+        """
+        from openhands.app_server.app_conversation.app_conversation_models import (
+            AppConversationInfoPage,
+        )
+
+        # Create test data with different sandbox IDs
+        sandbox_id_alpha = 'sandbox-alpha-123'
+        sandbox_id_beta = 'sandbox-beta-456'
+
+        conv_alpha = AppConversationInfo(
+            id=uuid4(),
+            created_by_user_id=None,
+            sandbox_id=sandbox_id_alpha,
+            title='Alpha Conversation',
+        )
+        conv_beta = AppConversationInfo(
+            id=uuid4(),
+            created_by_user_id=None,
+            sandbox_id=sandbox_id_beta,
+            title='Beta Conversation',
+        )
+
+        # Mock the info service to return filtered results based on sandbox_id__eq
+        async def mock_search(sandbox_id__eq=None, **kwargs):
+            if sandbox_id__eq == sandbox_id_alpha:
+                return AppConversationInfoPage(items=[conv_alpha])
+            elif sandbox_id__eq == sandbox_id_beta:
+                return AppConversationInfoPage(items=[conv_beta])
+            else:
+                return AppConversationInfoPage(items=[conv_alpha, conv_beta])
+
+        self.mock_app_conversation_info_service.search_app_conversation_info = (
+            AsyncMock(side_effect=mock_search)
+        )
+
+        # Mock sandbox service to return running status for sandbox lookups
+        self.mock_sandbox_service.batch_get_sandboxes = AsyncMock(return_value=[])
+
+        # Test filtering by sandbox_id_alpha
+        result = await self.service.search_app_conversations(
+            sandbox_id__eq=sandbox_id_alpha
+        )
+
+        # Verify the info service was called with the correct sandbox_id__eq
+        self.mock_app_conversation_info_service.search_app_conversation_info.assert_called()
+        call_kwargs = self.mock_app_conversation_info_service.search_app_conversation_info.call_args[
+            1
+        ]
+        assert call_kwargs.get('sandbox_id__eq') == sandbox_id_alpha
+
+        # Verify only alpha conversation is returned
+        assert len(result.items) == 1
+        assert result.items[0].sandbox_id == sandbox_id_alpha
+
+    @pytest.mark.asyncio
+    async def test_count_app_conversations_with_sandbox_id_filter(self):
+        """Test that count_app_conversations passes sandbox_id__eq to the info service.
+
+        This verifies that the sandbox_id filter is correctly propagated through
+        the service layer to the underlying info service for count operations.
+        """
+        sandbox_id = 'sandbox-count-test-789'
+
+        # Mock the info service to return count based on sandbox_id__eq
+        async def mock_count(sandbox_id__eq=None, **kwargs):
+            if sandbox_id__eq == sandbox_id:
+                return 3  # 3 conversations match this sandbox
+            else:
+                return 10  # 10 total conversations
+
+        self.mock_app_conversation_info_service.count_app_conversation_info = AsyncMock(
+            side_effect=mock_count
+        )
+
+        # Test counting with sandbox_id filter
+        result = await self.service.count_app_conversations(sandbox_id__eq=sandbox_id)
+
+        # Verify the info service was called with the correct sandbox_id__eq
+        self.mock_app_conversation_info_service.count_app_conversation_info.assert_called_once()
+        call_kwargs = self.mock_app_conversation_info_service.count_app_conversation_info.call_args[
+            1
+        ]
+        assert call_kwargs.get('sandbox_id__eq') == sandbox_id
+
+        # Verify filtered count is returned
+        assert result == 3
+
+    @pytest.mark.asyncio
+    async def test_search_app_conversations_sandbox_id_filter_returns_empty(self):
+        """Test that search with non-matching sandbox_id returns empty results."""
+        from openhands.app_server.app_conversation.app_conversation_models import (
+            AppConversationInfoPage,
+        )
+
+        # Mock the info service to return empty for non-matching sandbox
+        self.mock_app_conversation_info_service.search_app_conversation_info = (
+            AsyncMock(return_value=AppConversationInfoPage(items=[]))
+        )
+        self.mock_sandbox_service.batch_get_sandboxes = AsyncMock(return_value=[])
+
+        # Test filtering by non-existent sandbox_id
+        result = await self.service.search_app_conversations(
+            sandbox_id__eq='non-existent-sandbox'
+        )
+
+        # Verify empty results
+        assert len(result.items) == 0
+
 
 class TestPluginHandling:
     """Test cases for plugin-related functionality in LiveStatusAppConversationService."""
@@ -2060,12 +2440,7 @@ class TestPluginHandling:
         assert 'key2: value2' in text
 
     @pytest.mark.asyncio
-    @patch(
-        'openhands.app_server.app_conversation.live_status_app_conversation_service.ExperimentManagerImpl'
-    )
-    async def test_finalize_conversation_request_with_plugins(
-        self, mock_experiment_manager
-    ):
+    async def test_finalize_conversation_request_with_plugins(self):
         """Test _finalize_conversation_request passes plugins list to StartConversationRequest."""
         from openhands.app_server.app_conversation.app_conversation_models import (
             PluginSpec,
@@ -2076,13 +2451,13 @@ class TestPluginHandling:
         mock_llm = Mock(spec=LLM)
         mock_llm.model = 'gpt-4'
         mock_llm.usage_id = 'agent'
+        mock_agent.llm = mock_llm
+        mock_agent.condenser = None
 
         mock_updated_agent = Mock(spec=Agent)
         mock_updated_agent.llm = mock_llm
         mock_updated_agent.condenser = None
-        mock_experiment_manager.run_agent_variant_tests__v1.return_value = (
-            mock_updated_agent
-        )
+        mock_agent.model_copy = Mock(return_value=mock_updated_agent)
 
         workspace = LocalWorkspace(working_dir='/test')
         secrets = {'test': StaticSecret(value='secret')}
@@ -2124,25 +2499,20 @@ class TestPluginHandling:
         assert '- api_key: test123' in result.initial_message.content[0].text
 
     @pytest.mark.asyncio
-    @patch(
-        'openhands.app_server.app_conversation.live_status_app_conversation_service.ExperimentManagerImpl'
-    )
-    async def test_finalize_conversation_request_without_plugins(
-        self, mock_experiment_manager
-    ):
+    async def test_finalize_conversation_request_without_plugins(self):
         """Test _finalize_conversation_request without plugins sets plugins to None."""
         # Arrange
         mock_agent = Mock(spec=Agent)
         mock_llm = Mock(spec=LLM)
         mock_llm.model = 'gpt-4'
         mock_llm.usage_id = 'agent'
+        mock_agent.llm = mock_llm
+        mock_agent.condenser = None
 
         mock_updated_agent = Mock(spec=Agent)
         mock_updated_agent.llm = mock_llm
         mock_updated_agent.condenser = None
-        mock_experiment_manager.run_agent_variant_tests__v1.return_value = (
-            mock_updated_agent
-        )
+        mock_agent.model_copy = Mock(return_value=mock_updated_agent)
 
         workspace = LocalWorkspace(working_dir='/test')
         secrets = {}
@@ -2167,12 +2537,7 @@ class TestPluginHandling:
         assert result.plugins is None
 
     @pytest.mark.asyncio
-    @patch(
-        'openhands.app_server.app_conversation.live_status_app_conversation_service.ExperimentManagerImpl'
-    )
-    async def test_finalize_conversation_request_plugin_without_ref(
-        self, mock_experiment_manager
-    ):
+    async def test_finalize_conversation_request_plugin_without_ref(self):
         """Test _finalize_conversation_request with plugin that has no ref."""
         from openhands.app_server.app_conversation.app_conversation_models import (
             PluginSpec,
@@ -2183,13 +2548,13 @@ class TestPluginHandling:
         mock_llm = Mock(spec=LLM)
         mock_llm.model = 'gpt-4'
         mock_llm.usage_id = 'agent'
+        mock_agent.llm = mock_llm
+        mock_agent.condenser = None
 
         mock_updated_agent = Mock(spec=Agent)
         mock_updated_agent.llm = mock_llm
         mock_updated_agent.condenser = None
-        mock_experiment_manager.run_agent_variant_tests__v1.return_value = (
-            mock_updated_agent
-        )
+        mock_agent.model_copy = Mock(return_value=mock_updated_agent)
 
         workspace = LocalWorkspace(working_dir='/test')
         secrets = {}
@@ -2222,12 +2587,7 @@ class TestPluginHandling:
         assert result.initial_message is None
 
     @pytest.mark.asyncio
-    @patch(
-        'openhands.app_server.app_conversation.live_status_app_conversation_service.ExperimentManagerImpl'
-    )
-    async def test_finalize_conversation_request_plugin_with_repo_path(
-        self, mock_experiment_manager
-    ):
+    async def test_finalize_conversation_request_plugin_with_repo_path(self):
         """Test _finalize_conversation_request passes repo_path to PluginSource."""
         from openhands.app_server.app_conversation.app_conversation_models import (
             PluginSpec,
@@ -2238,13 +2598,13 @@ class TestPluginHandling:
         mock_llm = Mock(spec=LLM)
         mock_llm.model = 'gpt-4'
         mock_llm.usage_id = 'agent'
+        mock_agent.llm = mock_llm
+        mock_agent.condenser = None
 
         mock_updated_agent = Mock(spec=Agent)
         mock_updated_agent.llm = mock_llm
         mock_updated_agent.condenser = None
-        mock_experiment_manager.run_agent_variant_tests__v1.return_value = (
-            mock_updated_agent
-        )
+        mock_agent.model_copy = Mock(return_value=mock_updated_agent)
 
         workspace = LocalWorkspace(working_dir='/test')
         secrets = {}
@@ -2282,12 +2642,7 @@ class TestPluginHandling:
         assert result.plugins[0].repo_path == 'plugins/city-weather'
 
     @pytest.mark.asyncio
-    @patch(
-        'openhands.app_server.app_conversation.live_status_app_conversation_service.ExperimentManagerImpl'
-    )
-    async def test_finalize_conversation_request_multiple_plugins(
-        self, mock_experiment_manager
-    ):
+    async def test_finalize_conversation_request_multiple_plugins(self):
         """Test _finalize_conversation_request with multiple plugins."""
         from openhands.app_server.app_conversation.app_conversation_models import (
             PluginSpec,
@@ -2298,13 +2653,13 @@ class TestPluginHandling:
         mock_llm = Mock(spec=LLM)
         mock_llm.model = 'gpt-4'
         mock_llm.usage_id = 'agent'
+        mock_agent.llm = mock_llm
+        mock_agent.condenser = None
 
         mock_updated_agent = Mock(spec=Agent)
         mock_updated_agent.llm = mock_llm
         mock_updated_agent.condenser = None
-        mock_experiment_manager.run_agent_variant_tests__v1.return_value = (
-            mock_updated_agent
-        )
+        mock_agent.model_copy = Mock(return_value=mock_updated_agent)
 
         workspace = LocalWorkspace(working_dir='/test')
         secrets = {}
