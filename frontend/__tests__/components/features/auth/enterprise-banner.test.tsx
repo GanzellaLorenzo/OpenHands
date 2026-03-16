@@ -71,10 +71,11 @@ describe("EnterpriseBanner", () => {
 
     const banner = screen.getByTestId("enterprise-banner");
     expect(banner).toHaveClass("w-full");
-    // Check that the banner has the correct Figma styles
-    const style = banner.getAttribute("style");
-    expect(style).toContain("background");
-    expect(style).toContain("box-shadow");
+    // Check that the banner has the correct Tailwind styles for background, border, and shadow
+    expect(banner).toHaveClass("bg-neutral-950/50");
+    expect(banner).toHaveClass("border-t");
+    expect(banner).toHaveClass("border-neutral-800/60");
+    expect(banner).toHaveClass("shadow-md");
   });
 
   it("should render server icon", () => {
