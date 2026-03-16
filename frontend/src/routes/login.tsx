@@ -8,6 +8,7 @@ import { useInvitation } from "#/hooks/use-invitation";
 import { LoginContent } from "#/components/features/auth/login-content";
 import { EnterpriseBanner } from "#/components/features/auth/enterprise-banner";
 import { EmailVerificationModal } from "#/components/features/waitlist/email-verification-modal";
+import { PROJ_USER_JOURNEY } from "#/utils/feature-flags";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -68,6 +69,7 @@ export default function LoginPage() {
   }
 
   const isSaasMode = config.data?.app_mode === "saas";
+  const showEnterpriseBanner = isSaasMode && PROJ_USER_JOURNEY();
 
   return (
     <>
@@ -75,7 +77,7 @@ export default function LoginPage() {
         className="min-h-screen flex items-center justify-center bg-base p-4"
         data-testid="login-page"
       >
-        <div className="flex items-center gap-16">
+        <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-16 w-full max-w-[301.5px] lg:max-w-none lg:w-auto">
           <LoginContent
             githubAuthUrl={gitHubAuthUrl}
             appMode={config.data?.app_mode}
@@ -87,7 +89,11 @@ export default function LoginPage() {
             hasInvitation={hasInvitation}
             buildOAuthStateData={buildOAuthStateData}
           />
-          {isSaasMode && <EnterpriseBanner />}
+          {showEnterpriseBanner && (
+            <div className="w-full lg:w-[301.5px]">
+              <EnterpriseBanner />
+            </div>
+          )}
         </div>
       </main>
 

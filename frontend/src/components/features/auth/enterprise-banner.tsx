@@ -23,7 +23,7 @@ export function EnterpriseBanner() {
 
   return (
     <div
-      className="flex flex-col gap-4 p-6 rounded-xl border border-neutral-600 bg-base-secondary w-[301.5px]"
+      className="flex flex-col gap-4 p-6 rounded-xl border border-neutral-600 bg-base-secondary w-full"
       data-testid="enterprise-banner"
     >
       <ServerIcon className="w-8 h-8 text-neutral-400" />
