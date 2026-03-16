@@ -72,11 +72,14 @@ describe("EnterpriseBanner", () => {
     );
   });
 
-  it("should have responsive width class", () => {
+  it("should have gradient background style", () => {
     render(<EnterpriseBanner />);
 
     const banner = screen.getByTestId("enterprise-banner");
     expect(banner).toHaveClass("w-full");
+    // Check that the banner has a gradient background
+    const style = banner.getAttribute("style");
+    expect(style).toContain("linear-gradient");
   });
 
   it("should render server icon", () => {
