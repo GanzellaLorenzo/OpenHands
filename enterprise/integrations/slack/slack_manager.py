@@ -453,6 +453,14 @@ class SlackManager(Manager[SlackViewInterface]):
         # Check if this is an unauthenticated user (SlackMessageView but not SlackViewInterface)
         if not isinstance(slack_view, SlackViewInterface):
             login_link = self._generate_login_link_with_state(message)
+            logger.info(
+                'slack_not_yet_authenticated',
+                extra={
+                    'slack_user_id': message.message.get('slack_user_id'),
+                    'has_slack_user': slack_user is not None,
+                    'has_saas_user_auth': saas_user_auth is not None,
+                },
+            )
             raise SlackError(
                 SlackErrorCode.USER_NOT_AUTHENTICATED,
                 message_kwargs={'login_link': login_link},
@@ -509,16 +517,8 @@ class SlackManager(Manager[SlackViewInterface]):
             f'slack_error_{error.code.name.lower()}', extra=log_data
         )
 
-            logger.info(
-                'slack_not_yet_authenticated',
-                extra={
-                    'slack_user_id': message.message.get('slack_user_id'),
-                    'has_slack_user': slack_user is not None,
-                    'has_saas_user_auth': saas_user_auth is not None,
-                },
-            )
-            await self.send_message(error.get_user_message(), view, ephemeral=True)
-            return
+        # Send user-facing message
+        await self.send_message(error.get_user_message(), view, ephemeral=True)
 
     def _get_slack_team_store(self):
         """Get the SlackTeamStore instance (lazy import to avoid circular deps)."""
