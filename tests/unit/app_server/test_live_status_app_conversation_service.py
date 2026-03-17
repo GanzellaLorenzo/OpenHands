@@ -884,24 +884,30 @@ class TestLiveStatusAppConversationService:
                 working_dir=working_dir,
             )
 
-            # Assert
+            # Assert — Agent() receives llm, tools, condenser, agent_context
             mock_get_tools.assert_called_once_with(
                 plan_path='/workspace/project/.agents_tmp/PLAN.md'
             )
             mock_agent_class.assert_called_once()
             call_kwargs = mock_agent_class.call_args[1]
             assert call_kwargs['llm'] == mock_llm
-            assert call_kwargs['system_prompt_filename'] == 'system_prompt_planning.j2'
-            assert (
-                call_kwargs['system_prompt_kwargs']['plan_structure']
-                == 'test_plan_structure'
-            )
-            assert call_kwargs['mcp_config'] == mcp_config
-            assert call_kwargs['security_analyzer'] is None
             assert call_kwargs['condenser'] == mock_condenser
+            assert call_kwargs['agent_context'].system_message_suffix.startswith(
+                PLANNING_AGENT_INSTRUCTION
+            )
             mock_create_condenser.assert_called_once_with(
                 mock_llm, AgentType.PLAN, self.mock_user.condenser_max_size
             )
+
+            # Runtime overrides applied via model_copy
+            copy_kwargs = mock_agent_instance.model_copy.call_args[1]['update']
+            assert copy_kwargs['mcp_config'] == mcp_config
+            assert copy_kwargs['system_prompt_filename'] == 'system_prompt_planning.j2'
+            assert (
+                copy_kwargs['system_prompt_kwargs']['plan_structure']
+                == 'test_plan_structure'
+            )
+            assert copy_kwargs['security_analyzer'] is None
 
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools'
@@ -937,17 +943,20 @@ class TestLiveStatusAppConversationService:
                 self.mock_user.condenser_max_size,
             )
 
-            # Assert
+            # Assert — Agent() receives core fields
             mock_agent_class.assert_called_once()
             call_kwargs = mock_agent_class.call_args[1]
             assert call_kwargs['llm'] == mock_llm
-            assert call_kwargs['system_prompt_kwargs']['cli_mode'] is False
-            assert call_kwargs['mcp_config'] == mcp_config
             assert call_kwargs['condenser'] == mock_condenser
             mock_get_tools.assert_called_once_with(enable_browser=True)
             mock_create_condenser.assert_called_once_with(
                 mock_llm, AgentType.DEFAULT, self.mock_user.condenser_max_size
             )
+
+            # Runtime overrides applied via model_copy
+            copy_kwargs = mock_agent_instance.model_copy.call_args[1]['update']
+            assert copy_kwargs['system_prompt_kwargs']['cli_mode'] is False
+            assert copy_kwargs['mcp_config'] == mcp_config
 
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools',
@@ -992,6 +1001,8 @@ class TestLiveStatusAppConversationService:
         assert agent.condenser is None
         assert isinstance(agent.critic, APIBasedCritic)
         assert agent.critic.mode == 'all_actions'
+        assert agent.critic.server_url == 'https://llm-proxy.app.all-hands.dev/vllm'
+        assert agent.critic.model_name == 'critic'
         assert agent.critic.iterative_refinement is not None
         assert agent.critic.iterative_refinement.success_threshold == 0.75
         assert agent.critic.iterative_refinement.max_iterations == 2
@@ -1034,10 +1045,12 @@ class TestLiveStatusAppConversationService:
                 self.mock_user.condenser_max_size,
             )
 
-            # Assert - verify model_copy was called with agent_context containing planning instruction
-            model_copy_call = mock_agent_instance.model_copy.call_args
-            agent_context = model_copy_call[1]['update']['agent_context']
-            assert agent_context.system_message_suffix == PLANNING_AGENT_INSTRUCTION
+            # Assert — agent_context goes to Agent() constructor
+            call_kwargs = mock_agent_class.call_args[1]
+            assert (
+                call_kwargs['agent_context'].system_message_suffix
+                == PLANNING_AGENT_INSTRUCTION
+            )
 
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_planning_tools'
@@ -1078,13 +1091,11 @@ class TestLiveStatusAppConversationService:
                 self.mock_user.condenser_max_size,
             )
 
-            # Assert - verify planning instruction is prepended to existing suffix
-            model_copy_call = mock_agent_instance.model_copy.call_args
-            agent_context = model_copy_call[1]['update']['agent_context']
-            assert agent_context.system_message_suffix.startswith(
-                PLANNING_AGENT_INSTRUCTION
-            )
-            assert existing_suffix in agent_context.system_message_suffix
+            # Assert — agent_context goes to Agent() constructor
+            call_kwargs = mock_agent_class.call_args[1]
+            suffix = call_kwargs['agent_context'].system_message_suffix
+            assert suffix.startswith(PLANNING_AGENT_INSTRUCTION)
+            assert existing_suffix in suffix
 
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools'
@@ -1120,10 +1131,9 @@ class TestLiveStatusAppConversationService:
                 self.mock_user.condenser_max_size,
             )
 
-            # Assert - verify no planning instruction for default agent
-            model_copy_call = mock_agent_instance.model_copy.call_args
-            agent_context = model_copy_call[1]['update']['agent_context']
-            assert agent_context.system_message_suffix is None
+            # Assert — agent_context goes to Agent() constructor
+            call_kwargs = mock_agent_class.call_args[1]
+            assert call_kwargs['agent_context'].system_message_suffix is None
 
     @pytest.mark.asyncio
     async def test_finalize_conversation_request_with_skills(self):

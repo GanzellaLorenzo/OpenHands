@@ -88,8 +88,6 @@ from openhands.app_server.utils.llm_metadata import (
 from openhands.integrations.provider import ProviderType
 from openhands.integrations.service_types import SuggestedTask
 from openhands.sdk import Agent, AgentContext, LocalWorkspace
-from openhands.sdk.critic import IterativeRefinementConfig
-from openhands.sdk.critic.impl.api import APIBasedCritic
 from openhands.sdk.hooks import HookConfig
 from openhands.sdk.llm import LLM
 from openhands.sdk.plugin import PluginSource
@@ -126,34 +124,41 @@ Your role ends when the plan is finalized. Implementation is handled by the code
 </IMPORTANT_PLANNING_BOUNDARIES>"""
 
 
-def _get_default_critic(
-    llm: LLM, settings: AgentSettings, _agent: Agent | None = None
-) -> APIBasedCritic | None:
-    if not settings.critic.enabled:
-        return None
+_CRITIC_PROXY_PATTERN = re.compile(
+    r'^https?://llm-proxy\.[^./]+\.all-hands\.dev'
+)
+
+
+def _apply_critic_proxy(settings: AgentSettings, llm: LLM) -> AgentSettings:
+    """Route the critic through the LLM proxy when available.
+
+    If the LLM base URL matches the OpenHands proxy pattern, configure the
+    critic to use the proxy's ``/vllm`` endpoint.  Otherwise disable the
+    critic (external users don't have access to the hosted service).
+    """
+    if not settings.verification.critic_enabled:
+        return settings
 
     base_url = llm.base_url
-    api_key = llm.api_key
-    if base_url is None or api_key is None:
-        return None
-
-    pattern = r'^https?://llm-proxy\.[^./]+\.all-hands\.dev'
-    if not re.match(pattern, base_url):
-        return None
-
-    iterative_refinement = None
-    if settings.critic.enable_iterative_refinement:
-        iterative_refinement = IterativeRefinementConfig(
-            success_threshold=settings.critic.threshold,
-            max_iterations=settings.critic.max_refinement_iterations,
+    if base_url and _CRITIC_PROXY_PATTERN.match(base_url):
+        return settings.model_copy(
+            update={
+                'verification': settings.verification.model_copy(
+                    update={
+                        'critic_server_url': f'{base_url.rstrip("/")}/vllm',
+                        'critic_model_name': 'critic',
+                    }
+                ),
+            }
         )
 
-    return APIBasedCritic(
-        server_url=f'{base_url.rstrip("/")}/vllm',
-        api_key=api_key,
-        model_name='critic',
-        mode=settings.critic.mode,
-        iterative_refinement=iterative_refinement,
+    # No proxy → disable critic
+    return settings.model_copy(
+        update={
+            'verification': settings.verification.model_copy(
+                update={'critic_enabled': False}
+            ),
+        }
     )
 
 
@@ -1172,6 +1177,12 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
     ) -> Agent:
         """Create an agent with appropriate tools and context based on agent type.
 
+        When *agent_settings* is provided the agent is built via
+        ``AgentSettings.create_agent()`` which wires LLM, condenser,
+        tools, agent_context and critic from the settings object.
+        Runtime-only overrides (MCP config, system-prompt tweaks) are
+        applied via ``model_copy`` afterwards.
+
         Args:
             llm: Configured LLM instance
             agent_type: Type of agent to create (PLAN or DEFAULT)
@@ -1186,61 +1197,68 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         Returns:
             Configured Agent instance with context
         """
-        if agent_settings is None:
-            condenser = self._create_condenser(llm, agent_type, condenser_max_size)
-            critic = None
-        else:
-            condenser = (
-                self._create_condenser(
-                    llm,
-                    agent_type,
-                    agent_settings.condenser.max_size,
-                )
-                if agent_settings.condenser.enabled
-                else None
-            )
-            critic = _get_default_critic(llm, agent_settings)
-
-        if agent_type == AgentType.PLAN:
-            plan_path = None
-            if working_dir:
-                plan_path = self._compute_plan_path(working_dir, git_provider)
-
-            agent = Agent(
-                llm=llm,
-                tools=get_planning_tools(plan_path=plan_path),
-                system_prompt_filename='system_prompt_planning.j2',
-                system_prompt_kwargs={'plan_structure': format_plan_structure()},
-                condenser=condenser,
-                critic=critic,
-                security_analyzer=None,
-                mcp_config=mcp_config,
-            )
-        else:
-            agent = Agent(
-                llm=llm,
-                tools=get_default_tools(enable_browser=True),
-                system_prompt_kwargs={'cli_mode': False},
-                condenser=condenser,
-                critic=critic,
-                mcp_config=mcp_config,
-            )
-
-        effective_system_message_suffix = system_message_suffix
-        if agent_type == AgentType.PLAN:
-            if system_message_suffix:
-                effective_system_message_suffix = (
-                    f'{PLANNING_AGENT_INSTRUCTION}\n\n{system_message_suffix}'
-                )
-            else:
-                effective_system_message_suffix = PLANNING_AGENT_INSTRUCTION
-
-        agent_context = AgentContext(
-            system_message_suffix=effective_system_message_suffix, secrets=secrets
+        # -- Determine tools based on agent type --
+        plan_path = None
+        if agent_type == AgentType.PLAN and working_dir:
+            plan_path = self._compute_plan_path(working_dir, git_provider)
+        tools = (
+            get_planning_tools(plan_path=plan_path)
+            if agent_type == AgentType.PLAN
+            else get_default_tools(enable_browser=True)
         )
-        agent = agent.model_copy(update={'agent_context': agent_context})
 
-        return agent
+        # -- Build system message suffix --
+        effective_suffix = system_message_suffix
+        if agent_type == AgentType.PLAN:
+            effective_suffix = (
+                f'{PLANNING_AGENT_INSTRUCTION}\n\n{system_message_suffix}'
+                if system_message_suffix
+                else PLANNING_AGENT_INSTRUCTION
+            )
+
+        # -- Build the agent from settings when available --
+        if agent_settings is not None:
+            # Route critic through the LLM proxy (or disable it).
+            agent_settings = _apply_critic_proxy(agent_settings, llm)
+
+            # Populate runtime-determined fields, then let
+            # create_agent() wire LLM, condenser, critic, etc.
+            agent_settings = agent_settings.model_copy(
+                update={
+                    'llm': llm,
+                    'tools': tools,
+                    'agent_context': AgentContext(
+                        system_message_suffix=effective_suffix,
+                        secrets=secrets,
+                    ),
+                }
+            )
+            agent = agent_settings.create_agent()
+        else:
+            # Legacy path: no SDK settings — build agent manually.
+            condenser = self._create_condenser(llm, agent_type, condenser_max_size)
+            agent = Agent(
+                llm=llm,
+                tools=tools,
+                condenser=condenser,
+                agent_context=AgentContext(
+                    system_message_suffix=effective_suffix,
+                    secrets=secrets,
+                ),
+            )
+
+        # -- Apply runtime-only overrides not captured by settings --
+        runtime_overrides: dict[str, Any] = {'mcp_config': mcp_config}
+        if agent_type == AgentType.PLAN:
+            runtime_overrides['system_prompt_filename'] = 'system_prompt_planning.j2'
+            runtime_overrides['system_prompt_kwargs'] = {
+                'plan_structure': format_plan_structure()
+            }
+            runtime_overrides['security_analyzer'] = None
+        else:
+            runtime_overrides['system_prompt_kwargs'] = {'cli_mode': False}
+
+        return agent.model_copy(update=runtime_overrides)
 
     def _update_agent_with_llm_metadata(
         self,
