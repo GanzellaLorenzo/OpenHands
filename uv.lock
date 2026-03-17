@@ -3642,8 +3642,8 @@ wheels = [
 
 [[package]]
 name = "openhands-agent-server"
-version = "1.13.0"
-source = { git = "https://github.com/OpenHands/software-agent-sdk.git?subdirectory=openhands-agent-server&rev=openhands%2Fissue-2228-sdk-settings-schema#bcbd66c1dbb1ac6842cde8a4205ffb1b28a166d0" }
+version = "1.14.0"
+source = { git = "https://github.com/OpenHands/software-agent-sdk.git?subdirectory=openhands-agent-server&rev=openhands%2Fissue-2228-sdk-settings-schema#bb601665b93f52d0649357ad373fe94eb6eb56d3" }
 dependencies = [
     { name = "aiosqlite" },
     { name = "alembic" },
@@ -3904,8 +3904,8 @@ test = [
 
 [[package]]
 name = "openhands-sdk"
-version = "1.13.0"
-source = { git = "https://github.com/OpenHands/software-agent-sdk.git?subdirectory=openhands-sdk&rev=openhands%2Fissue-2228-sdk-settings-schema#bcbd66c1dbb1ac6842cde8a4205ffb1b28a166d0" }
+version = "1.14.0"
+source = { git = "https://github.com/OpenHands/software-agent-sdk.git?subdirectory=openhands-sdk&rev=openhands%2Fissue-2228-sdk-settings-schema#bb601665b93f52d0649357ad373fe94eb6eb56d3" }
 dependencies = [
     { name = "agent-client-protocol" },
     { name = "deprecation" },
@@ -3924,8 +3924,8 @@ dependencies = [
 
 [[package]]
 name = "openhands-tools"
-version = "1.13.0"
-source = { git = "https://github.com/OpenHands/software-agent-sdk.git?subdirectory=openhands-tools&rev=openhands%2Fissue-2228-sdk-settings-schema#bcbd66c1dbb1ac6842cde8a4205ffb1b28a166d0" }
+version = "1.14.0"
+source = { git = "https://github.com/OpenHands/software-agent-sdk.git?subdirectory=openhands-tools&rev=openhands%2Fissue-2228-sdk-settings-schema#bb601665b93f52d0649357ad373fe94eb6eb56d3" }
 dependencies = [
     { name = "bashlex" },
     { name = "binaryornot" },
