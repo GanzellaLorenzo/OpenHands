@@ -2159,6 +2159,38 @@
     "de": "GitLab",
     "uk": "GitLab"
   },
+  "SETTINGS$NAV_CONDENSER": {
+    "en": "Condenser",
+    "ja": "コンデンサー",
+    "zh-CN": "压缩器",
+    "zh-TW": "壓縮器",
+    "ko-KR": "압축기",
+    "no": "Kondensator",
+    "it": "Condensatore",
+    "pt": "Condensador",
+    "es": "Condensador",
+    "ar": "المكثف",
+    "fr": "Condenseur",
+    "tr": "Yoğunlaştırıcı",
+    "de": "Kondensator",
+    "uk": "Конденсатор"
+  },
+  "SETTINGS$NAV_CRITIC": {
+    "en": "Critic",
+    "ja": "クリティック",
+    "zh-CN": "评审",
+    "zh-TW": "評審",
+    "ko-KR": "크리틱",
+    "no": "Kritiker",
+    "it": "Critico",
+    "pt": "Crítico",
+    "es": "Crítico",
+    "ar": "الناقد",
+    "fr": "Critique",
+    "tr": "Eleştirmen",
+    "de": "Kritiker",
+    "uk": "Критик"
+  },
   "SETTINGS$NAV_LLM": {
     "en": "LLM",
     "ja": "LLM",

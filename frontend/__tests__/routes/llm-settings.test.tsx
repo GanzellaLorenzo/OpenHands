@@ -121,7 +121,7 @@ beforeEach(() => {
 });
 
 describe("LlmSettingsScreen", () => {
-  it("renders critical fields and schema-driven sections from sdk_settings_schema", async () => {
+  it("renders critical LLM fields from sdk_settings_schema", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
 
     renderLlmSettingsScreen();
@@ -132,52 +132,10 @@ describe("LlmSettingsScreen", () => {
     expect(
       screen.getByTestId("sdk-settings-llm.base_url"),
     ).toBeInTheDocument();
-    // Critic section rendered by generic schema renderer
+    // Condenser/critic fields should NOT appear (they have their own pages)
     expect(
-      screen.getByTestId("sdk-settings-critic.enabled"),
-    ).toBeInTheDocument();
-    // Minor field hidden in basic view
-    expect(
-      screen.queryByTestId("sdk-settings-critic.mode"),
+      screen.queryByTestId("sdk-settings-critic.enabled"),
     ).not.toBeInTheDocument();
-  });
-
-  it("reveals dependent advanced fields when their controlling value is enabled", async () => {
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
-
-    renderLlmSettingsScreen();
-
-    await screen.findByTestId("llm-settings-screen");
-    // Switch to "All" view to see minor fields
-    await userEvent.click(screen.getByTestId("llm-settings-all-toggle"));
-
-    const criticSwitch = screen.getByTestId("sdk-settings-critic.enabled");
-    expect(criticSwitch).toBeInTheDocument();
-    // critic.mode is dependent on critic.enabled; not shown while disabled
-    expect(
-      screen.queryByTestId("sdk-settings-critic.mode"),
-    ).not.toBeInTheDocument();
-
-    await userEvent.click(criticSwitch);
-
-    expect(screen.getByTestId("sdk-settings-critic.mode")).toBeInTheDocument();
-  });
-
-  it("starts in 'all' mode when minor sdk values override defaults", async () => {
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({
-        sdk_settings_values: {
-          ...MOCK_DEFAULT_USER_SETTINGS.sdk_settings_values,
-          "critic.mode": "all_actions",
-          "critic.enabled": true,
-        },
-      }),
-    );
-
-    renderLlmSettingsScreen();
-
-    await screen.findByTestId("llm-settings-screen");
-    expect(screen.getByTestId("sdk-settings-critic.mode")).toBeInTheDocument();
   });
 
   it("saves changed schema-driven fields through the generic settings payload", async () => {
