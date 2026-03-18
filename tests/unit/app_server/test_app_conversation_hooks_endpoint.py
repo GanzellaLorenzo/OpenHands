@@ -263,7 +263,7 @@ class TestGetConversationHooks:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    async def test_get_hooks_returns_404_when_sandbox_not_running(self):
+    async def test_get_hooks_returns_empty_list_when_sandbox_not_running(self):
         conversation_id = uuid4()
         sandbox_id = str(uuid4())
 
@@ -290,4 +290,8 @@ class TestGetConversationHooks:
             httpx_client=AsyncMock(spec=httpx.AsyncClient),
         )
 
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.status_code == status.HTTP_200_OK
+        import json
+
+        data = json.loads(response.body.decode('utf-8'))
+        assert data == {'hooks': []}
