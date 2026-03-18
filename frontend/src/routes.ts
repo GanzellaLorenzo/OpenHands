@@ -8,7 +8,7 @@ import {
 export default [
   route("login", "routes/login.tsx"),
   route("onboarding", "routes/onboarding-layout.tsx", [
-    route("new-account-form", "routes/onboarding-form.tsx"),
+    index("routes/onboarding-form.tsx"),
     route("information-request", "routes/information-request.tsx"),
   ]),
   layout("routes/root-layout.tsx", [

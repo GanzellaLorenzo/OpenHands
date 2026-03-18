@@ -6,7 +6,7 @@ import { Text } from "#/ui/typography";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import OpenHandsLogoWhite from "#/assets/branding/openhands-logo-white.svg?react";
 import CloudIcon from "#/icons/cloud.svg?react";
-import ServerIcon from "#/icons/server.svg?react";
+import StackedIcon from "#/icons/stacked.svg?react";
 
 interface FeatureListProps {
   features: string[];
@@ -43,7 +43,7 @@ function EnterpriseCard({
   learnMoreLabel,
 }: EnterpriseCardProps) {
   return (
-    <Card theme="dark" className="flex-1 flex-col p-6 gap-4">
+    <Card theme="dark" hover="elevated" className="flex-1 flex-col p-6 gap-4">
       <div className="w-10 h-10">{icon}</div>
       <h3 className="text-lg font-semibold text-white">{title}</h3>
       <Text className="text-[#8C8C8C]">{description}</Text>
@@ -52,7 +52,7 @@ function EnterpriseCard({
         href={learnMoreHref}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-2 w-fit p-2 text-sm rounded-sm border border-primary text-primary hover:opacity-80"
+        className="mt-2 w-fit px-6 py-2.5 text-sm rounded-sm bg-[#050505] text-white border border-[#242424] hover:bg-white hover:text-black transition-colors"
       >
         {learnMoreLabel}
       </a>
@@ -113,7 +113,7 @@ export default function InformationRequest() {
           learnMoreLabel={t(I18nKey.ENTERPRISE$LEARN_MORE)}
         />
         <EnterpriseCard
-          icon={<ServerIcon className="w-10 h-10" />}
+          icon={<StackedIcon className="w-10 h-10" />}
           title={t(I18nKey.ENTERPRISE$SELF_HOSTED_TITLE)}
           description={t(I18nKey.ENTERPRISE$SELF_HOSTED_DESCRIPTION)}
           features={selfHostedFeatures}
