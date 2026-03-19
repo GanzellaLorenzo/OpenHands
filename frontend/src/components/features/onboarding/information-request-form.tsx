@@ -60,23 +60,25 @@ export function InformationRequestForm({
   return (
     <div
       data-testid="information-request-form"
-      className="w-full max-w-4xl flex flex-col items-center gap-8"
+      className="w-full max-w-[896px] flex flex-col items-center gap-8"
     >
       {/* Header */}
-      <div className="flex flex-col items-center gap-4">
-        <OpenHandsLogoWhite width={55} height={55} />
+      <div className="w-full flex flex-col items-center gap-4">
+        <OpenHandsLogoWhite width={56} height={56} />
         <div className="text-center flex flex-col gap-2">
-          <h1 className="text-2xl font-bold text-white">{title}</h1>
-          <Text className="text-[#8C8C8C]">{subtitle}</Text>
+          <h1 className="text-2xl font-semibold leading-[30px] text-white">
+            {title}
+          </h1>
+          <Text className="text-[#8C8C8C] leading-5">{subtitle}</Text>
         </div>
       </div>
 
       {/* Content: Form + Card */}
-      <div className="w-full flex flex-col md:flex-row gap-6">
+      <div className="w-full flex flex-col md:flex-row gap-8">
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="flex-1 flex flex-col gap-4 max-w-lg"
+          className="flex-1 flex flex-col gap-4 w-full md:max-w-[544px]"
         >
           <FormInput
             id="name"
@@ -125,21 +127,24 @@ export function InformationRequestForm({
             <button
               type="button"
               onClick={onBack}
-              className="flex-1 px-6 py-2.5 text-sm rounded-sm bg-transparent text-white border border-[#3a3a3a] hover:bg-[#1a1a1a] transition-colors"
+              className="flex-1 px-6 py-2.5 text-sm rounded bg-transparent text-white border border-[#242424] hover:bg-[#1a1a1a] transition-colors"
             >
               {t(I18nKey.COMMON$BACK)}
             </button>
             <button
               type="submit"
-              className="flex-1 px-6 py-2.5 text-sm rounded-sm bg-white text-black border border-white hover:bg-gray-100 transition-colors"
+              className="flex-1 px-6 py-2.5 text-sm rounded bg-white text-black border border-white hover:bg-gray-100 transition-colors"
             >
               {t(I18nKey.ENTERPRISE$FORM_SUBMIT)}
             </button>
           </div>
         </form>
 
-        {/* Info Card */}
-        <Card theme="dark" className="flex-1 flex-col p-6 gap-4 max-w-sm">
+        {/* CTA Card */}
+        <Card
+          theme="dark"
+          className="w-full md:w-80 flex-col p-[25px] gap-4 border-t-[#24242499] bg-[#0A0A0A80] shadow-[0px_4px_6px_-4px_#0000001A,0px_10px_15px_-3px_#0000001A] before:absolute before:inset-0 before:rounded-2xl before:bg-[radial-gradient(144.32%_106.6%_at_50%_0%,rgba(255,255,255,0.14)_0%,rgba(0,0,0,0)_55%)] before:pointer-events-none"
+        >
           <div className="w-10 h-10">
             {isSaas ? (
               <CloudIcon className="w-10 h-10" />
@@ -147,8 +152,12 @@ export function InformationRequestForm({
               <StackedIcon className="w-10 h-10" />
             )}
           </div>
-          <h3 className="text-lg font-semibold text-white">{cardTitle}</h3>
-          <Text className="text-[#8C8C8C]">{cardDescription}</Text>
+          <h3 className="text-xl font-semibold leading-7 text-[#FAFAFA]">
+            {cardTitle}
+          </h3>
+          <Text className="text-[#8C8C8C] leading-[22.75px]">
+            {cardDescription}
+          </Text>
         </Card>
       </div>
     </div>
