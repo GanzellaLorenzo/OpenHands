@@ -6394,7 +6394,7 @@ pybase62 = ">=1"
 pygithub = ">=2.5"
 pyjwt = ">=2.12"
 pylatexenc = "*"
-pypdf = ">=6.7.2"
+pypdf = ">=6.9.1"
 python-docx = "*"
 python-dotenv = "*"
 python-frontmatter = ">=1.1"
@@ -11708,14 +11708,14 @@ diagrams = ["jinja2", "railroad-diagrams"]
 
 [[package]]
 name = "pypdf"
-version = "6.9.0"
+version = "6.9.1"
 description = "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pypdf-6.9.0-py3-none-any.whl", hash = "sha256:85805ad7457ca878c4cfd1bc026c4b3dcae359b4a80f889fa7e8c5a1c1a83e51"},
-    {file = "pypdf-6.9.0.tar.gz", hash = "sha256:a59257869fc575ba2ccc10100a36be0a47cd1bc1fb00f2950abf1d219fa94c01"},
+    {file = "pypdf-6.9.1-py3-none-any.whl", hash = "sha256:f35a6a022348fae47e092a908339a8f3dc993510c026bb39a96718fc7185e89f"},
+    {file = "pypdf-6.9.1.tar.gz", hash = "sha256:ae052407d33d34de0c86c5c729be6d51010bf36e03035a8f23ab449bca52377d"},
 ]
 
 [package.extras]

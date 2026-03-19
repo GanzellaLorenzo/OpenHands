@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { Settings } from "#/types/settings";
 import { useSettings } from "../query/use-settings";
+import { useSelectedOrganizationId } from "#/context/use-selected-organization";
 
 type SettingsUpdate = Partial<Settings> & Record<string, unknown>;
 
@@ -32,6 +33,7 @@ export const useSaveSettings = () => {
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const { data: currentSettings } = useSettings();
+  const { organizationId } = useSelectedOrganizationId();
 
   return useMutation({
     mutationFn: async (settings: SettingsUpdate) => {
@@ -58,7 +60,9 @@ export const useSaveSettings = () => {
       await saveSettingsMutationFn(newSettings);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["settings", organizationId],
+      });
     },
     meta: {
       disableToast: true,
