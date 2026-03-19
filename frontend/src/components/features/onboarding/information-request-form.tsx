@@ -83,6 +83,7 @@ export function InformationRequestForm({
             label={t(I18nKey.ENTERPRISE$FORM_NAME_LABEL)}
             value={formData.name}
             placeholder={t(I18nKey.ENTERPRISE$FORM_NAME_PLACEHOLDER)}
+            required
             onChange={(value) =>
               setFormData((prev) => ({ ...prev, name: value }))
             }
@@ -93,6 +94,7 @@ export function InformationRequestForm({
             label={t(I18nKey.ENTERPRISE$FORM_COMPANY_LABEL)}
             value={formData.company}
             placeholder={t(I18nKey.ENTERPRISE$FORM_COMPANY_PLACEHOLDER)}
+            required
             onChange={(value) =>
               setFormData((prev) => ({ ...prev, company: value }))
             }
@@ -104,6 +106,7 @@ export function InformationRequestForm({
             type="email"
             value={formData.email}
             placeholder={t(I18nKey.ENTERPRISE$FORM_EMAIL_PLACEHOLDER)}
+            required
             onChange={(value) =>
               setFormData((prev) => ({ ...prev, email: value }))
             }
@@ -115,22 +118,25 @@ export function InformationRequestForm({
             value={formData.message}
             placeholder={messagePlaceholder}
             rows={4}
+            required
             onChange={(value) =>
               setFormData((prev) => ({ ...prev, message: value }))
             }
           />
 
           {/* Buttons */}
-          <div className="flex gap-4 mt-4">
+          <div className="flex gap-4 mt-4" role="group" aria-label="Form actions">
             <button
               type="button"
               onClick={onBack}
+              aria-label={t(I18nKey.COMMON$BACK)}
               className="flex-1 px-6 py-2.5 text-sm rounded bg-transparent text-white border border-[#242424] hover:bg-[#1a1a1a] transition-colors"
             >
               {t(I18nKey.COMMON$BACK)}
             </button>
             <button
               type="submit"
+              aria-label={t(I18nKey.ENTERPRISE$FORM_SUBMIT)}
               className="flex-1 px-6 py-2.5 text-sm rounded bg-white text-black border border-white hover:bg-gray-100 transition-colors"
             >
               {t(I18nKey.ENTERPRISE$FORM_SUBMIT)}

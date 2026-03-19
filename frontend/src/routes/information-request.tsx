@@ -56,6 +56,7 @@ function EnterpriseCard({
       <button
         type="button"
         onClick={onLearnMore}
+        aria-label={`${learnMoreLabel} ${title}`}
         className="mt-2 w-fit px-6 py-2.5 text-sm rounded-sm bg-[#050505] text-white border border-[#242424] hover:bg-white hover:text-black transition-colors"
       >
         {learnMoreLabel}
@@ -117,7 +118,7 @@ export default function InformationRequest() {
       className="w-full max-w-4xl flex flex-col items-center gap-8 p-6"
     >
       {/* Logo */}
-      <OpenHandsLogoWhite width={55} height={55} />
+      <OpenHandsLogoWhite width={56} height={56} />
 
       {/* Header */}
       <div className="text-center flex flex-col gap-3">
@@ -154,6 +155,7 @@ export default function InformationRequest() {
         type="button"
         variant="secondary"
         onClick={handleBack}
+        aria-label={t(I18nKey.COMMON$BACK)}
         className="px-6 py-2.5 bg-[#050505] text-white border border-[#242424] hover:bg-white hover:text-black"
       >
         {t(I18nKey.COMMON$BACK)}

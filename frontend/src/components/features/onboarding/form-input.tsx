@@ -6,6 +6,7 @@ interface FormInputProps {
   placeholder?: string;
   type?: "text" | "email";
   rows?: number;
+  required?: boolean;
 }
 
 export function FormInput({
@@ -16,6 +17,7 @@ export function FormInput({
   placeholder,
   type = "text",
   rows,
+  required = false,
 }: FormInputProps) {
   const inputId = `form-input-${id}`;
   const inputClassName =
@@ -28,6 +30,7 @@ export function FormInput({
         className="text-sm font-medium leading-5 text-[#FAFAFA] cursor-pointer"
       >
         {label}
+        {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
       </label>
       {rows ? (
         <textarea
@@ -37,6 +40,9 @@ export function FormInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           rows={rows}
+          required={required}
+          aria-required={required}
+          aria-label={label}
           className={`${inputClassName} h-auto resize-none`}
         />
       ) : (
@@ -47,6 +53,9 @@ export function FormInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
+          required={required}
+          aria-required={required}
+          aria-label={label}
           className={inputClassName}
         />
       )}
