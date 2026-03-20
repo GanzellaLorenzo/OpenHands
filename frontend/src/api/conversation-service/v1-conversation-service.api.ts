@@ -12,7 +12,9 @@ import type {
   V1AppConversationStartTask,
   V1AppConversationStartTaskPage,
   V1AppConversation,
+  V1AppConversationPage,
   GetSkillsResponse,
+  GetHooksResponse,
   V1RuntimeConversationInfo,
 } from "./v1-conversation-service.types";
 
@@ -66,6 +68,8 @@ class V1ConversationService {
     trigger?: ConversationTrigger,
     parent_conversation_id?: string,
     agent_type?: "default" | "plan",
+    sandbox_id?: string,
+    llm_model?: string,
   ): Promise<V1AppConversationStartTask> {
     const body: V1AppConversationStartRequest = {
       selected_repository: selectedRepository,
@@ -76,6 +80,8 @@ class V1ConversationService {
       trigger,
       parent_conversation_id: parent_conversation_id || null,
       agent_type,
+      sandbox_id: sandbox_id || null,
+      llm_model: llm_model || null,
     };
 
     // suggested_task implies the backend will construct the initial_message
@@ -400,6 +406,18 @@ class V1ConversationService {
   }
 
   /**
+   * Get all hooks associated with a V1 conversation
+   * @param conversationId The conversation ID
+   * @returns The available hooks associated with the conversation
+   */
+  static async getHooks(conversationId: string): Promise<GetHooksResponse> {
+    const { data } = await openHands.get<GetHooksResponse>(
+      `/api/v1/app-conversations/${conversationId}/hooks`,
+    );
+    return data;
+  }
+
+  /**
    * Get conversation info directly from the runtime for a V1 conversation
    * Uses the custom runtime URL from the conversation
    *
@@ -423,6 +441,28 @@ class V1ConversationService {
       headers,
     });
     return data;
+  }
+
+  /**
+   * Search for V1 conversations by sandbox ID
+   *
+   * @param sandboxId The sandbox ID to filter by
+   * @param limit Maximum number of results (default: 100)
+   * @returns Array of conversations in the specified sandbox
+   */
+  static async searchConversationsBySandboxId(
+    sandboxId: string,
+    limit: number = 100,
+  ): Promise<V1AppConversation[]> {
+    const params = new URLSearchParams();
+    params.append("sandbox_id__eq", sandboxId);
+    params.append("limit", limit.toString());
+
+    const { data } = await openHands.get<V1AppConversationPage>(
+      `/api/v1/app-conversations/search?${params.toString()}`,
+    );
+
+    return data.items;
   }
 }
 

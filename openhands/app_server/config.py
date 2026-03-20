@@ -33,6 +33,10 @@ from openhands.app_server.event_callback.event_callback_service import (
     EventCallbackService,
     EventCallbackServiceInjector,
 )
+from openhands.app_server.pending_messages.pending_message_service import (
+    PendingMessageService,
+    PendingMessageServiceInjector,
+)
 from openhands.app_server.sandbox.sandbox_service import (
     SandboxService,
     SandboxServiceInjector,
@@ -83,6 +87,19 @@ def get_default_web_url() -> str | None:
     return f'https://{web_host}'
 
 
+def get_default_permitted_cors_origins() -> list[str]:
+    """Get permitted CORS origins, falling back to legacy PERMITTED_CORS_ORIGINS env var.
+
+    The preferred configuration is via OH_PERMITTED_CORS_ORIGINS_0, _1, etc.
+    (handled by the pydantic from_env parser). This fallback supports the legacy
+    comma-separated PERMITTED_CORS_ORIGINS environment variable.
+    """
+    legacy = os.getenv('PERMITTED_CORS_ORIGINS', '')
+    if legacy:
+        return [o.strip() for o in legacy.split(',') if o.strip()]
+    return []
+
+
 def get_openhands_provider_base_url() -> str | None:
     """Return the base URL for the OpenHands provider, if configured."""
     return os.getenv('OPENHANDS_PROVIDER_BASE_URL') or None
@@ -102,6 +119,14 @@ class AppServerConfig(OpenHandsModel):
         default_factory=get_default_web_url,
         description='The URL where OpenHands is running (e.g., http://localhost:3000)',
     )
+    permitted_cors_origins: list[str] = Field(
+        default_factory=get_default_permitted_cors_origins,
+        description=(
+            'Additional permitted CORS origins for both the app server and agent '
+            'server containers. Configure via OH_PERMITTED_CORS_ORIGINS_0, _1, etc. '
+            'Falls back to legacy PERMITTED_CORS_ORIGINS env var.'
+        ),
+    )
     openhands_provider_base_url: str | None = Field(
         default_factory=get_openhands_provider_base_url,
         description='Base URL for the OpenHands provider',
@@ -114,6 +139,7 @@ class AppServerConfig(OpenHandsModel):
     app_conversation_info: AppConversationInfoServiceInjector | None = None
     app_conversation_start_task: AppConversationStartTaskServiceInjector | None = None
     app_conversation: AppConversationServiceInjector | None = None
+    pending_message: PendingMessageServiceInjector | None = None
     user: UserContextInjector | None = None
     jwt: JwtServiceInjector | None = None
     httpx: HttpxClientInjector = Field(default_factory=HttpxClientInjector)
@@ -280,6 +306,13 @@ def config_from_env() -> AppServerConfig:
             tavily_api_key=tavily_api_key
         )
 
+    if config.pending_message is None:
+        from openhands.app_server.pending_messages.pending_message_service import (
+            SQLPendingMessageServiceInjector,
+        )
+
+        config.pending_message = SQLPendingMessageServiceInjector()
+
     if config.user is None:
         config.user = AuthUserContextInjector()
 
@@ -358,6 +391,14 @@ def get_app_conversation_service(
     return injector.context(state, request)
 
 
+def get_pending_message_service(
+    state: InjectorState, request: Request | None = None
+) -> AsyncContextManager[PendingMessageService]:
+    injector = get_global_config().pending_message
+    assert injector is not None
+    return injector.context(state, request)
+
+
 def get_user_context(
     state: InjectorState, request: Request | None = None
 ) -> AsyncContextManager[UserContext]:
@@ -429,6 +470,12 @@ def depends_app_conversation_start_task_service():
 
 def depends_app_conversation_service():
     injector = get_global_config().app_conversation
+    assert injector is not None
+    return Depends(injector.depends)
+
+
+def depends_pending_message_service():
+    injector = get_global_config().pending_message
     assert injector is not None
     return Depends(injector.depends)
 
