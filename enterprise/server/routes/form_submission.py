@@ -110,10 +110,15 @@ def _get_user_id_from_request(request: Request) -> UUID | None:
     return None
 
 
-def _validate_enterprise_lead_answers(answers: dict[str, Any]) -> None:
-    """Validate answers for enterprise_lead form type."""
+def _validate_and_sanitize_enterprise_lead_answers(answers: dict[str, Any]) -> dict[str, Any]:
+    """Validate and sanitize answers for enterprise_lead form type.
+
+    Returns:
+        Sanitized answers dict with HTML-escaped text fields.
+    """
     try:
-        EnterpriseLeadAnswers(**answers)
+        validated = EnterpriseLeadAnswers(**answers)
+        return validated.model_dump()
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -139,21 +144,13 @@ async def submit_form(
     - email: contact email
     - message: inquiry message
     """
-    # Rate limit by IP address (aggressive for public write endpoint)
-    client_ip = request.client.host if request.client else 'unknown'
-    await form_submit_rate_limiter.hit('form_submit', client_ip)
-
-    # Validate form type
+    # Validate form type first (before rate limiting, so bad input doesn't count)
     valid_form_types = {'enterprise_lead'}
     if submission.form_type not in valid_form_types:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid form_type. Must be one of: {', '.join(valid_form_types)}",
         )
-
-    # Validate and sanitize answers based on form type
-    if submission.form_type == 'enterprise_lead':
-        _validate_enterprise_lead_answers(submission.answers)
 
     # Get user ID if authenticated (optional)
     try:
@@ -166,12 +163,17 @@ async def submit_form(
             detail='Internal authentication error',
         )
 
+    # Rate limit by IP address (after validation, so bad input doesn't count)
+    # Only successful submissions count against the rate limit
+    client_ip = request.client.host if request.client else 'unknown'
+    await form_submit_rate_limiter.hit('form_submit', client_ip)
+
     # Create submission record
     submission_id = uuid4()
     new_submission = FormSubmission(
         id=submission_id,
         form_type=submission.form_type,
-        answers=submission.answers,
+        answers= _validate_and_sanitize_enterprise_lead_answers(submission.answers),
         status='pending',
         user_id=user_id,
     )
