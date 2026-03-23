@@ -34,8 +34,8 @@ RUN cd /tmp/enterprise && \
     # NOTE: --without-hashes is temporary for testing git dependencies (SDK PR #2490)
     # TODO: Remove --without-hashes once SDK is released to PyPI
     /app/.venv/bin/poetry export --only main --without-hashes -o requirements.txt && \
-    # Remove the local path dependency (openhands-ai is already in base image)
-    sed -i '/^-e /d; /openhands-ai/d' requirements.txt && \
+    # Remove packages already in base image (openhands-ai and SDK packages)
+    sed -i '/^-e /d; /openhands-ai/d; /openhands-sdk/d; /openhands-agent-server/d; /openhands-tools/d' requirements.txt && \
     # Install pinned dependencies from lock file
     /app/.venv/bin/pip install -r requirements.txt && \
     # Cleanup - return to /app before removing /tmp/enterprise
