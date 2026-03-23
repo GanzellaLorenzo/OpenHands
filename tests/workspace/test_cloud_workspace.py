@@ -435,11 +435,13 @@ def test_saas_runtime_mode_sandbox_id_from_env(monkeypatch):
 
 
 def test_saas_runtime_mode_session_key_from_env(monkeypatch):
-    """SESSION_API_KEY env var populates _session_api_key in saas_runtime_mode."""
+    """SESSION_API_KEY populates _session_api_key and api_key."""
     monkeypatch.setenv("SESSION_API_KEY", "sess-key-abc")
     workspace = _make_saas_workspace()
 
     assert workspace._session_api_key == "sess-key-abc"
+    # api_key must also be set so the shared HTTP client includes X-Session-API-Key
+    assert workspace.api_key == "sess-key-abc"
     workspace.cleanup()
 
 
@@ -450,6 +452,7 @@ def test_saas_runtime_mode_session_key_fallback(monkeypatch):
     workspace = _make_saas_workspace()
 
     assert workspace._session_api_key == "oh-key-xyz"
+    assert workspace.api_key == "oh-key-xyz"
     workspace.cleanup()
 
 

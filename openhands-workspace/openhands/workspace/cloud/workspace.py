@@ -233,6 +233,10 @@ class OpenHandsCloudWorkspace(RemoteWorkspace):
                 "API calls will fail."
             )
 
+        # Propagate to RemoteWorkspaceMixin.api_key so the shared HTTP
+        # client (used by RemoteConversation) includes X-Session-API-Key.
+        self.api_key = self._session_api_key
+
         self.reset_client()
         # Trigger parent mixin init (strips trailing slash, etc.)
         super().model_post_init(None)
