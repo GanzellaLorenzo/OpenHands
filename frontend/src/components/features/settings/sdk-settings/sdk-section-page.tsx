@@ -120,7 +120,7 @@ export function SdkSectionPage({
   const [values, setValues] = React.useState<SettingsFormValues>({});
   const [dirty, setDirty] = React.useState<SettingsDirtyState>({});
 
-  const fullSchema = settings?.sdk_settings_schema ?? null;
+  const fullSchema = settings?.agent_settings_schema ?? null;
 
   // Build a filtered schema containing only the requested sections
   const filteredSchema = React.useMemo(() => {
@@ -136,7 +136,7 @@ export function SdkSectionPage({
   const showAll = hasMinorSettings(filteredSchema);
 
   React.useEffect(() => {
-    if (!settings?.sdk_settings_schema) return;
+    if (!settings?.agent_settings_schema) return;
     setValues(buildInitialSettingsFormValues(settings));
     setDirty({});
     setView(inferInitialView(settings, filteredSchema));

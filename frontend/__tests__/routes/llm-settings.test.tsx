@@ -39,18 +39,18 @@ vi.mock("#/hooks/query/use-config", () => ({
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
   const hasSchemaOverride = Object.prototype.hasOwnProperty.call(
     overrides,
-    "sdk_settings_schema",
+    "agent_settings_schema",
   );
 
   return {
     ...MOCK_DEFAULT_USER_SETTINGS,
     ...overrides,
-    sdk_settings_schema: hasSchemaOverride
-      ? overrides.sdk_settings_schema ?? null
-      : MOCK_DEFAULT_USER_SETTINGS.sdk_settings_schema,
-    sdk_settings_values: {
-      ...MOCK_DEFAULT_USER_SETTINGS.sdk_settings_values,
-      ...overrides.sdk_settings_values,
+    agent_settings_schema: hasSchemaOverride
+      ? (overrides.agent_settings_schema ?? null)
+      : MOCK_DEFAULT_USER_SETTINGS.agent_settings_schema,
+    agent_settings: {
+      ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+      ...overrides.agent_settings,
     },
   };
 }
@@ -129,7 +129,7 @@ beforeEach(() => {
 });
 
 describe("LlmSettingsScreen", () => {
-  it("renders critical LLM fields from sdk_settings_schema", async () => {
+  it("renders critical LLM fields from agent_settings_schema", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
 
     renderLlmSettingsScreen();
@@ -137,9 +137,7 @@ describe("LlmSettingsScreen", () => {
     await screen.findByTestId("llm-settings-screen");
     // Critical fields rendered by CriticalFields component
     expect(screen.getByTestId("sdk-settings-llm.api_key")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("sdk-settings-llm.base_url"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("sdk-settings-llm.base_url")).toBeInTheDocument();
     // Condenser/critic fields should NOT appear (they have their own pages)
     expect(
       screen.queryByTestId("sdk-settings-critic.enabled"),
@@ -149,21 +147,19 @@ describe("LlmSettingsScreen", () => {
   it("renders schema-driven settings when backend returns canonical agent_settings fields", async () => {
     const canonicalSettings: Settings = {
       ...buildSettings(),
-      sdk_settings_schema: undefined,
-      sdk_settings_values: undefined,
-      agent_settings_schema: MOCK_DEFAULT_USER_SETTINGS.sdk_settings_schema,
-      agent_settings: MOCK_DEFAULT_USER_SETTINGS.sdk_settings_values,
+      agent_settings_schema: MOCK_DEFAULT_USER_SETTINGS.agent_settings_schema,
+      agent_settings: MOCK_DEFAULT_USER_SETTINGS.agent_settings,
     };
 
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(canonicalSettings);
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      canonicalSettings,
+    );
 
     renderLlmSettingsScreen();
 
     await screen.findByTestId("llm-settings-screen");
     expect(screen.getByTestId("sdk-settings-llm.api_key")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("sdk-settings-llm.base_url"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("sdk-settings-llm.base_url")).toBeInTheDocument();
   });
 
   it("saves changed schema-driven fields through the generic settings payload", async () => {
@@ -203,9 +199,9 @@ describe("LlmSettingsScreen", () => {
     expect(screen.getByTestId("sdk-settings-llm.api_key")).toBeDisabled();
   });
 
-  it("shows a fallback message when sdk settings schema is unavailable", async () => {
+  it("shows a fallback message when agent settings schema is unavailable", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({ sdk_settings_schema: null }),
+      buildSettings({ agent_settings_schema: null }),
     );
 
     renderLlmSettingsScreen();
@@ -221,8 +217,6 @@ describe("LlmSettingsScreen", () => {
     renderLlmSettingsScreen();
 
     await screen.findByTestId("llm-settings-screen");
-    expect(
-      screen.getByTestId("help-link-llm.api_key"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("help-link-llm.api_key")).toBeInTheDocument();
   });
 });

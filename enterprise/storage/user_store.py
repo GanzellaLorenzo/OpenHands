@@ -91,9 +91,12 @@ class UserStore:
             from storage.org_member_store import OrgMemberStore
 
             org_member_kwargs = OrgMemberStore.get_kwargs_from_settings(settings)
-            # avoid setting org member llm fields to use org defaults on user creation
-            del org_member_kwargs['llm_model']
-            del org_member_kwargs['llm_base_url']
+            # Personal orgs should inherit org defaults rather than duplicating them
+            # on the owner membership.
+            org_member_kwargs['agent_settings'] = {}
+            org_member_kwargs.pop('llm_model', None)
+            org_member_kwargs.pop('llm_base_url', None)
+            org_member_kwargs.pop('max_iterations', None)
             org_member = OrgMember(
                 org_id=org.id,
                 user_id=user.id,
@@ -236,6 +239,11 @@ class UserStore:
             if custom_settings:
                 org_kwargs['default_llm_model'] = get_default_litellm_model()
                 org_kwargs['default_llm_base_url'] = LITE_LLM_API_URL
+                org_kwargs['agent_settings'] = {
+                    'schema_version': 1,
+                    'llm.model': get_default_litellm_model(),
+                    'llm.base_url': LITE_LLM_API_URL,
+                }
                 org_kwargs['org_version'] = ORG_SETTINGS_VERSION
 
             for key, value in org_kwargs.items():
@@ -279,8 +287,10 @@ class UserStore:
             # if the user did not have custom settings in the old model,
             # then use the org defaults by not setting org_member fields
             if not custom_settings:
-                del org_member_kwargs['llm_model']
-                del org_member_kwargs['llm_base_url']
+                org_member_kwargs['agent_settings'] = {}
+                org_member_kwargs.pop('llm_model', None)
+                org_member_kwargs.pop('llm_base_url', None)
+                org_member_kwargs.pop('max_iterations', None)
 
             org_member = OrgMember(
                 org_id=org.id,
@@ -950,47 +960,21 @@ class UserStore:
         Returns:
             A new UserSettings object populated from the entities
         """
-        # Mapping from OrgMember fields to corresponding Org "default_" fields
-        org_member_to_org_default = {
-            'llm_model': 'default_llm_model',
-            'llm_base_url': 'default_llm_base_url',
-            'max_iterations': 'default_max_iterations',
-        }
-
-        def get_value_with_org_fallback(field_name: str, org_member_value):
-            """Get value from OrgMember, falling back to Org default if None."""
-            if org_member_value is not None:
-                return org_member_value
-            org_default_field = org_member_to_org_default.get(field_name)
-            if org_default_field and hasattr(org, org_default_field):
-                return getattr(org, org_default_field)
-            return None
-
-        # Get values from OrgMember with Org fallback for fields with default_ prefix
-        llm_model = get_value_with_org_fallback('llm_model', org_member.llm_model)
-        llm_base_url = get_value_with_org_fallback(
-            'llm_base_url', org_member.llm_base_url
-        )
-        max_iterations = get_value_with_org_fallback(
-            'max_iterations', org_member.max_iterations
-        )
+        from storage.org_store import OrgStore
 
         from openhands.storage.data_models.settings import Settings
 
-        agent_settings = Settings(
-            agent=org.agent,
-            llm_model=llm_model,
-            llm_api_key=org_member.llm_api_key.get_secret_value()
-            if org_member.llm_api_key
-            else None,
-            llm_base_url=llm_base_url,
-            max_iterations=max_iterations,
-            confirmation_mode=org.confirmation_mode,
-            security_analyzer=org.security_analyzer,
-            enable_default_condenser=org.enable_default_condenser,
-            condenser_max_size=org.condenser_max_size,
-            agent_settings=org_member.agent_settings or {},
-        ).normalized_agent_settings(strip_secret_values=True)
+        member_settings = Settings(agent_settings=dict(org_member.agent_settings or {}))
+        member_settings.set_agent_setting('llm.model', org_member.llm_model)
+        member_settings.set_agent_setting('llm.base_url', org_member.llm_base_url)
+        member_settings.set_agent_setting('max_iterations', org_member.max_iterations)
+        member_agent_settings = member_settings.normalized_agent_settings(
+            strip_secret_values=True
+        )
+        agent_settings = {
+            **OrgStore.get_agent_settings_from_org(org),
+            **member_agent_settings,
+        }
 
         return UserSettings(
             keycloak_user_id=user_id,
@@ -1043,12 +1027,16 @@ class UserStore:
         Returns:
             True if user has custom settings, False if using old defaults
         """
-        settings = user_settings.to_settings()
+        persisted_agent_settings = user_settings.agent_settings or {}
+        user_model = persisted_agent_settings.get('llm.model') or getattr(
+            user_settings, 'llm_model', None
+        )
+        user_base_url = persisted_agent_settings.get('llm.base_url') or getattr(
+            user_settings, 'llm_base_url', None
+        )
 
-        user_model = settings.llm_model.strip() or None if settings.llm_model else None
-        user_base_url = (
-            settings.llm_base_url.strip() if settings.llm_base_url else None
-        ) or None
+        user_model = user_model.strip() or None if user_model else None
+        user_base_url = user_base_url.strip() or None if user_base_url else None
 
         # Custom base_url = definitely custom settings (BYOK)
         if user_base_url and user_base_url != LITE_LLM_API_URL:

@@ -84,6 +84,7 @@ from openhands.app_server.utils.llm_metadata import (
     get_llm_metadata,
     should_set_litellm_extra_body,
 )
+from openhands.core.config.mcp_config import MCPConfig
 from openhands.integrations.provider import PROVIDER_TOKEN_TYPE, ProviderType
 from openhands.integrations.service_types import SuggestedTask
 from openhands.sdk import Agent, AgentContext, LocalWorkspace
@@ -375,11 +376,12 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
             # Set security analyzer from settings
             user = await self.user_context.get_user_info()
+            verification_settings = user.to_agent_settings().verification
             await self._set_security_analyzer_from_settings(
                 agent_server_url,
                 sandbox.session_api_key,
                 info.id,
-                user.security_analyzer,
+                verification_settings.security_analyzer,
                 self.httpx_client,
             )
 
@@ -905,15 +907,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         agent_settings = self._get_agent_settings(user, llm_model)
         llm_settings = agent_settings.llm.model_copy(deep=True)
 
-        if llm_settings.model.startswith('openhands/'):
-            configured_base_url = user.agent_settings.get(
-                'llm.base_url', user.llm_base_url
-            )
-            if configured_base_url is None:
-                llm_settings = llm_settings.model_copy(
-                    update={'base_url': self.openhands_provider_base_url}
-                )
-
         return LLM.model_validate(
             {
                 **llm_settings.model_dump(mode='python'),
@@ -1058,29 +1051,28 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
     def _merge_custom_mcp_config(
         self, mcp_servers: dict[str, Any], user: UserInfo
     ) -> None:
-        """Merge custom MCP configuration from user settings.
-
-        Args:
-            mcp_servers: Dictionary to add servers to
-            user: User information containing custom MCP config
-        """
-        if not user.mcp_config:
+        """Merge custom MCP configuration from canonical SDK agent settings."""
+        user_mcp_config = user.to_agent_settings().mcp_config
+        if not user_mcp_config:
             return
 
         try:
-            sse_count = len(user.mcp_config.sse_servers)
-            shttp_count = len(user.mcp_config.shttp_servers)
-            stdio_count = len(user.mcp_config.stdio_servers)
+            typed_mcp_config = MCPConfig.model_validate(user_mcp_config)
+            sse_servers = typed_mcp_config.sse_servers
+            shttp_servers = typed_mcp_config.shttp_servers
+            stdio_servers = typed_mcp_config.stdio_servers
+            sse_count = len(sse_servers)
+            shttp_count = len(shttp_servers)
+            stdio_count = len(stdio_servers)
 
             _logger.info(
                 f'Loading custom MCP config from user settings: '
                 f'{sse_count} SSE, {shttp_count} SHTTP, {stdio_count} STDIO servers'
             )
 
-            # Add each type of custom server
-            self._add_custom_sse_servers(mcp_servers, user.mcp_config.sse_servers)
-            self._add_custom_shttp_servers(mcp_servers, user.mcp_config.shttp_servers)
-            self._add_custom_stdio_servers(mcp_servers, user.mcp_config.stdio_servers)
+            self._add_custom_sse_servers(mcp_servers, sse_servers)
+            self._add_custom_shttp_servers(mcp_servers, shttp_servers)
+            self._add_custom_stdio_servers(mcp_servers, stdio_servers)
 
             _logger.info(
                 f'Successfully merged custom MCP config: added {sse_count} SSE, '
@@ -1092,7 +1084,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 f'Error loading custom MCP config from user settings: {e}',
                 exc_info=True,
             )
-            # Continue with system config only, don't fail conversation startup
             _logger.warning(
                 'Continuing with system-generated MCP config only due to custom config error'
             )
@@ -1446,13 +1437,16 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 for p in plugins
             ]
 
+        verification_settings = user.to_agent_settings().verification
+
         # Create and return the final request
         return StartConversationRequest(
             conversation_id=conversation_id,
             agent=agent,
             workspace=workspace,
             confirmation_policy=self._select_confirmation_policy(
-                bool(user.confirmation_mode), user.security_analyzer
+                verification_settings.confirmation_mode,
+                verification_settings.security_analyzer,
             ),
             initial_message=final_initial_message,
             secrets=secrets,

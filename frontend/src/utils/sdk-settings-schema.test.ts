@@ -11,28 +11,24 @@ import {
 import { Settings } from "#/types/settings";
 
 const BASE_SETTINGS: Settings = {
-  agent: "CodeActAgent",
-  condenser_max_size: 240,
-  confirmation_mode: false,
-  email: "",
-  email_verified: true,
-  enable_default_condenser: true,
+  language: "en",
+  llm_api_key_set: false,
+  search_api_key_set: false,
+  remote_runtime_resource_factor: 1,
+  provider_tokens_set: {},
+  enable_sound_notifications: false,
   enable_proactive_conversation_starters: false,
   enable_solvability_analysis: false,
-  enable_sound_notifications: false,
-  git_user_email: "openhands@all-hands.dev",
-  git_user_name: "openhands",
-  language: "en",
-  llm_api_key: null,
-  llm_api_key_set: false,
-  llm_base_url: "",
-  llm_model: "openai/gpt-4o",
-  max_budget_per_task: null,
-  provider_tokens_set: {},
-  remote_runtime_resource_factor: 1,
+  user_consents_to_analytics: false,
   search_api_key: "",
-  search_api_key_set: false,
-  sdk_settings_schema: {
+  is_new_user: true,
+  max_budget_per_task: null,
+  email: "",
+  email_verified: true,
+  git_user_name: "openhands",
+  git_user_email: "openhands@all-hands.dev",
+  v1_enabled: false,
+  agent_settings_schema: {
     model_name: "AgentSettings",
     sections: [
       {
@@ -130,14 +126,16 @@ const BASE_SETTINGS: Settings = {
       },
     ],
   },
-  sdk_settings_values: {
+  agent_settings: {
+    agent: "CodeActAgent",
     "critic.mode": "finish_and_message",
     "critic.enabled": false,
+    "llm.api_key": null,
     "llm.model": "openai/gpt-4o",
+    "verification.confirmation_mode": false,
+    "condenser.enabled": true,
+    "condenser.max_size": 240,
   },
-  security_analyzer: null,
-  user_consents_to_analytics: false,
-  v1_enabled: false,
 };
 
 describe("sdk settings schema helpers", () => {
@@ -156,10 +154,10 @@ describe("sdk settings schema helpers", () => {
     expect(hasAdvancedSettingsOverrides(BASE_SETTINGS)).toBe(false);
     expect(inferInitialView(BASE_SETTINGS)).toBe("basic");
 
-    const withMinorOverride = {
+    const withMinorOverride: Settings = {
       ...BASE_SETTINGS,
-      sdk_settings_values: {
-        ...BASE_SETTINGS.sdk_settings_values,
+      agent_settings: {
+        ...BASE_SETTINGS.agent_settings,
         "critic.mode": "all_actions",
       },
     };
@@ -170,23 +168,19 @@ describe("sdk settings schema helpers", () => {
   it("filters fields by view tier and excludes specially-rendered keys", () => {
     const values = buildInitialSettingsFormValues(BASE_SETTINGS);
 
-    // In "basic" view: only critical fields, minus the specially-rendered ones
     const basicSections = getVisibleSettingsSections(
-      BASE_SETTINGS.sdk_settings_schema!,
+      BASE_SETTINGS.agent_settings_schema!,
       values,
       "basic",
     );
-    // llm.model and llm.api_key are critical but excluded as specially-rendered
-    // critic.enabled is critical and not excluded
     const allBasicFields = basicSections.flatMap((s) => s.fields);
     for (const field of allBasicFields) {
       expect(SPECIALLY_RENDERED_KEYS.has(field.key)).toBe(false);
       expect(field.prominence).toBe("critical");
     }
 
-    // In "all" view with critic enabled: should show dependent fields
     const allSections = getVisibleSettingsSections(
-      BASE_SETTINGS.sdk_settings_schema!,
+      BASE_SETTINGS.agent_settings_schema!,
       { ...values, "critic.enabled": true },
       "all",
     );
@@ -197,10 +191,10 @@ describe("sdk settings schema helpers", () => {
   it("passes through all fields when excludeKeys is empty", () => {
     const values = buildInitialSettingsFormValues(BASE_SETTINGS);
     const sections = getVisibleSettingsSections(
-      BASE_SETTINGS.sdk_settings_schema!,
+      BASE_SETTINGS.agent_settings_schema!,
       values,
       "basic",
-      new Set(), // no exclusions
+      new Set(),
     );
     const allFieldKeys = sections.flatMap((s) => s.fields.map((f) => f.key));
     expect(allFieldKeys).toContain("llm.model");
@@ -209,7 +203,7 @@ describe("sdk settings schema helpers", () => {
 
   it("builds a typed payload from dirty schema values", () => {
     const payload = buildSdkSettingsPayload(
-      BASE_SETTINGS.sdk_settings_schema!,
+      BASE_SETTINGS.agent_settings_schema!,
       {
         ...buildInitialSettingsFormValues(BASE_SETTINGS),
         "critic.enabled": true,

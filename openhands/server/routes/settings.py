@@ -7,7 +7,6 @@
 # Tag: Legacy-V0
 # This module belongs to the old V0 web server. The V1 application server lives under openhands/app_server/.
 import importlib
-import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, status
@@ -33,11 +32,6 @@ from openhands.server.user_auth import (
 from openhands.storage.data_models.settings import Settings
 from openhands.storage.secrets.secrets_store import SecretsStore
 from openhands.storage.settings.settings_store import SettingsStore
-from openhands.utils.llm import get_provider_api_base, is_openhands_model
-
-LITE_LLM_API_URL = os.environ.get(
-    'LITE_LLM_API_URL', 'https://llm-proxy.app.all-hands.dev'
-)
 
 
 def _get_agent_settings_schema() -> dict[str, Any] | None:
@@ -116,6 +110,8 @@ def _apply_settings_payload(
             if key in secret_field_keys:
                 if value is not None and value != '' and value != _SECRET_REDACTED:
                     agent_settings[key] = value
+            elif value is None:
+                agent_settings.pop(key, None)
             else:
                 agent_settings[key] = value
         elif key in Settings.model_fields and key not in _SETTINGS_FROZEN_FIELDS:
@@ -194,40 +190,6 @@ async def load_settings(
         )
 
 
-async def store_llm_settings(
-    settings: Settings, existing_settings: Settings | None
-) -> Settings:
-    if existing_settings:
-        if settings.llm_api_key is None:
-            settings.llm_api_key = existing_settings.llm_api_key
-        if settings.llm_model is None:
-            settings.llm_model = existing_settings.llm_model
-        if settings.llm_base_url is None:
-            if existing_settings.llm_base_url:
-                settings.llm_base_url = existing_settings.llm_base_url
-            elif is_openhands_model(settings.llm_model):
-                settings.llm_base_url = LITE_LLM_API_URL
-            elif settings.llm_model:
-                try:
-                    api_base = get_provider_api_base(settings.llm_model)
-                    if api_base:
-                        settings.llm_base_url = api_base
-                    else:
-                        logger.debug(
-                            f'No api_base found in litellm for model: {settings.llm_model}'
-                        )
-                except Exception as e:
-                    logger.error(
-                        f'Failed to get api_base from litellm for model {settings.llm_model}: {e}'
-                    )
-        elif settings.llm_base_url == '':
-            settings.llm_base_url = None
-        if not settings.search_api_key:
-            settings.search_api_key = existing_settings.search_api_key
-
-    return settings
-
-
 # NOTE: We use response_model=None for endpoints that return JSONResponse directly.
 # This is because FastAPI's response_model expects a Pydantic model, but we're returning
 # a response object directly. We document the possible responses using the 'responses'
@@ -250,9 +212,10 @@ async def store_settings(
         settings = _apply_settings_payload(
             payload, existing_settings, agent_settings_schema
         )
-        settings = await store_llm_settings(settings, existing_settings)
 
         if existing_settings:
+            if not settings.search_api_key:
+                settings.search_api_key = existing_settings.search_api_key
             if settings.user_consents_to_analytics is None:
                 settings.user_consents_to_analytics = (
                     existing_settings.user_consents_to_analytics

@@ -9,32 +9,18 @@ import { useConfig } from "./use-config";
 
 const getSettingsQueryFn = async (): Promise<Settings> => {
   const settings = await SettingsService.getSettings();
-  const {
-    agent_settings: agentSettings,
-    agent_settings_schema: agentSettingsSchema,
-    sdk_settings_values: sdkSettingsValues,
-    sdk_settings_schema: sdkSettingsSchema,
-    ...rest
-  } = settings;
 
   return {
-    ...rest,
-    condenser_max_size:
-      settings.condenser_max_size ?? DEFAULT_SETTINGS.condenser_max_size,
+    ...settings,
     search_api_key: settings.search_api_key || "",
     email: settings.email || "",
     git_user_name: settings.git_user_name || DEFAULT_SETTINGS.git_user_name,
     git_user_email: settings.git_user_email || DEFAULT_SETTINGS.git_user_email,
     is_new_user: false,
     v1_enabled: settings.v1_enabled ?? DEFAULT_SETTINGS.v1_enabled,
-    sdk_settings_schema:
-      sdkSettingsSchema ??
-      agentSettingsSchema ??
-      DEFAULT_SETTINGS.sdk_settings_schema,
-    sdk_settings_values:
-      sdkSettingsValues ??
-      agentSettings ??
-      DEFAULT_SETTINGS.sdk_settings_values,
+    agent_settings_schema:
+      settings.agent_settings_schema ?? DEFAULT_SETTINGS.agent_settings_schema,
+    agent_settings: settings.agent_settings ?? DEFAULT_SETTINGS.agent_settings,
     sandbox_grouping_strategy:
       settings.sandbox_grouping_strategy ??
       DEFAULT_SETTINGS.sandbox_grouping_strategy,

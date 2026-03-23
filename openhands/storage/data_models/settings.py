@@ -29,12 +29,13 @@ def _assign_dotted_value(target: dict[str, Any], dotted_key: str, value: Any) ->
     current[parts[-1]] = value
 
 
-# Maps legacy flat field names → SDK dotted keys for migration.
+# Maps legacy flat field names → SDK keys for migration.
 _LEGACY_FLAT_TO_SDK: dict[str, str] = {
+    'agent': 'agent',
     'llm_model': 'llm.model',
     'llm_api_key': 'llm.api_key',
     'llm_base_url': 'llm.base_url',
-    'agent': 'agent',
+    'mcp_config': 'mcp_config',
     'confirmation_mode': 'verification.confirmation_mode',
     'security_analyzer': 'verification.security_analyzer',
     'enable_default_condenser': 'condenser.enabled',
@@ -74,6 +75,14 @@ def _normalize_persisted_sdk_value(dotted_key: str, value: Any) -> Any:
     return value
 
 
+def _coerce_agent_setting_value(value: Any) -> Any:
+    if isinstance(value, SecretStr):
+        return value.get_secret_value()
+    if isinstance(value, MCPConfig):
+        return value.model_dump(mode='python')
+    return value
+
+
 class SandboxGroupingStrategy(str, Enum):
     """Strategy for grouping conversations within sandboxes."""
 
@@ -87,10 +96,9 @@ class SandboxGroupingStrategy(str, Enum):
 class Settings(BaseModel):
     """Persisted settings for OpenHands sessions.
 
-    SDK-managed fields (LLM config, condenser, verification, agent) live
-    exclusively in ``agent_settings`` using dotted keys such as
-    ``llm.model``. Convenience properties provide typed access while
-    preserving backward-compatible assignment semantics for legacy code.
+    SDK-managed fields (agent, llm, mcp, condenser, verification) live
+    exclusively in ``agent_settings``. Non-agent product settings remain as
+    top-level fields on this model.
     """
 
     language: str | None = None
@@ -105,7 +113,6 @@ class Settings(BaseModel):
     user_consents_to_analytics: bool | None = None
     sandbox_base_container_image: str | None = None
     sandbox_runtime_container_image: str | None = None
-    mcp_config: MCPConfig | None = None
     search_api_key: SecretStr | None = None
     sandbox_api_key: SecretStr | None = None
     max_budget_per_task: float | None = None
@@ -119,95 +126,22 @@ class Settings(BaseModel):
         SandboxGroupingStrategy.NO_GROUPING
     )
 
-    model_config = ConfigDict(
-        validate_assignment=True,
-    )
+    model_config = ConfigDict(validate_assignment=True)
 
-    def _set_agent_setting(self, key: str, value: Any) -> None:
+    def get_agent_setting(self, key: str, default: Any = None) -> Any:
+        return self.agent_settings.get(key, default)
+
+    def set_agent_setting(self, key: str, value: Any) -> None:
         if value is None:
             self.agent_settings.pop(key, None)
             return
-        if isinstance(value, SecretStr):
-            self.agent_settings[key] = value.get_secret_value()
-            return
-        self.agent_settings[key] = value
+        self.agent_settings[key] = _coerce_agent_setting_value(value)
 
-    # ------------------------------------------------------------------
-    # Convenience accessors into agent_settings
-    # ------------------------------------------------------------------
-
-    @property
-    def llm_model(self) -> str | None:
-        return self.agent_settings.get('llm.model')
-
-    @llm_model.setter
-    def llm_model(self, value: str | None) -> None:
-        self._set_agent_setting('llm.model', value)
-
-    @property
-    def llm_api_key(self) -> SecretStr | None:
-        val = self.agent_settings.get('llm.api_key')
-        return SecretStr(val) if val else None
-
-    @llm_api_key.setter
-    def llm_api_key(self, value: SecretStr | str | None) -> None:
-        self._set_agent_setting('llm.api_key', value)
-
-    @property
-    def llm_base_url(self) -> str | None:
-        return self.agent_settings.get('llm.base_url')
-
-    @llm_base_url.setter
-    def llm_base_url(self, value: str | None) -> None:
-        self._set_agent_setting('llm.base_url', value)
-
-    @property
-    def agent(self) -> str | None:
-        return self.agent_settings.get('agent')
-
-    @agent.setter
-    def agent(self, value: str | None) -> None:
-        self._set_agent_setting('agent', value)
-
-    @property
-    def confirmation_mode(self) -> bool | None:
-        return self.agent_settings.get('verification.confirmation_mode')
-
-    @confirmation_mode.setter
-    def confirmation_mode(self, value: bool | None) -> None:
-        self._set_agent_setting('verification.confirmation_mode', value)
-
-    @property
-    def security_analyzer(self) -> str | None:
-        return self.agent_settings.get('verification.security_analyzer')
-
-    @security_analyzer.setter
-    def security_analyzer(self, value: str | None) -> None:
-        self._set_agent_setting('verification.security_analyzer', value)
-
-    @property
-    def max_iterations(self) -> int | None:
-        return self.agent_settings.get('max_iterations')
-
-    @max_iterations.setter
-    def max_iterations(self, value: int | None) -> None:
-        self._set_agent_setting('max_iterations', value)
-
-    @property
-    def enable_default_condenser(self) -> bool:
-        return self.agent_settings.get('condenser.enabled', True)
-
-    @enable_default_condenser.setter
-    def enable_default_condenser(self, value: bool | None) -> None:
-        self._set_agent_setting('condenser.enabled', value)
-
-    @property
-    def condenser_max_size(self) -> int | None:
-        return self.agent_settings.get('condenser.max_size')
-
-    @condenser_max_size.setter
-    def condenser_max_size(self, value: int | None) -> None:
-        self._set_agent_setting('condenser.max_size', value)
+    def get_secret_agent_setting(self, key: str) -> SecretStr | None:
+        value = self.agent_settings.get(key)
+        if not value:
+            return None
+        return SecretStr(str(value))
 
     @property
     def llm_api_key_is_set(self) -> bool:
@@ -217,18 +151,13 @@ class Settings(BaseModel):
     def normalized_agent_settings(
         self, *, strip_secret_values: bool = False
     ) -> dict[str, Any]:
-        """Return a canonical flat agent_settings mapping for persistence.
-
-        This normalizes schema/version drift without running values back through
-        runtime-only SDK coercions such as the internal OpenHands LLM provider
-        rewrite.
-        """
+        """Return a canonical flat agent_settings mapping for persistence."""
         payload: dict[str, Any] = {}
         for key, value in self.agent_settings.items():
             if key == 'schema_version':
                 payload['schema_version'] = value
                 continue
-            _assign_dotted_value(payload, key, value)
+            _assign_dotted_value(payload, key, _coerce_agent_setting_value(value))
 
         try:
             migrated_payload = AgentSettings._migrate_schema(dict(payload))
@@ -265,18 +194,6 @@ class Settings(BaseModel):
         object.__setattr__(self, 'agent_settings', normalized)
         return True
 
-    @property
-    def sdk_settings_values(self) -> dict[str, Any]:
-        return self.agent_settings
-
-    @sdk_settings_values.setter
-    def sdk_settings_values(self, value: dict[str, Any] | None) -> None:
-        self.agent_settings = dict(value or {})
-
-    # ------------------------------------------------------------------
-    # Serialization
-    # ------------------------------------------------------------------
-
     @field_serializer('search_api_key')
     def api_key_serializer(self, api_key: SecretStr | None, info: SerializationInfo):
         if api_key is None:
@@ -297,7 +214,6 @@ class Settings(BaseModel):
         context = info.context
         if context and context.get('expose_secrets', False):
             return values
-        # Redact — caller should use _extract_agent_settings for GET.
         return {k: v for k, v in values.items()}
 
     @model_validator(mode='before')
@@ -309,29 +225,31 @@ class Settings(BaseModel):
 
         agent_vals: dict[str, Any] = dict(data.get('agent_settings') or {})
 
-        legacy_agent_vals = data.pop('sdk_settings_values', None)
-        if isinstance(legacy_agent_vals, dict):
-            for key, value in legacy_agent_vals.items():
-                agent_vals.setdefault(key, value)
+        for legacy_key in ('sdk_settings_values', 'mcp_config'):
+            legacy_agent_vals = data.pop(legacy_key, None)
+            if legacy_key == 'sdk_settings_values' and isinstance(
+                legacy_agent_vals, dict
+            ):
+                for key, value in legacy_agent_vals.items():
+                    agent_vals.setdefault(key, _coerce_agent_setting_value(value))
+            elif legacy_key == 'mcp_config' and legacy_agent_vals is not None:
+                agent_vals.setdefault(
+                    'mcp_config', _coerce_agent_setting_value(legacy_agent_vals)
+                )
 
-        for flat_key, dotted_key in _LEGACY_FLAT_TO_SDK.items():
-            if flat_key in data and dotted_key not in agent_vals:
+        for flat_key, sdk_key in _LEGACY_FLAT_TO_SDK.items():
+            if flat_key in data and sdk_key not in agent_vals:
                 value = data[flat_key]
                 if value is not None:
-                    # Unwrap SecretStr / pydantic masked strings
-                    if isinstance(value, SecretStr):
-                        value = value.get_secret_value()
-                    elif isinstance(value, str) and value.startswith('**'):
-                        continue  # skip masked values
-                    agent_vals[dotted_key] = value
+                    if isinstance(value, str) and value.startswith('**'):
+                        continue
+                    agent_vals[sdk_key] = _coerce_agent_setting_value(value)
 
-        # Remove legacy flat fields so Pydantic doesn't complain
         for flat_key in _LEGACY_FLAT_TO_SDK:
             data.pop(flat_key, None)
 
         data['agent_settings'] = agent_vals
 
-        # Handle legacy secrets_store
         secrets_store = data.get('secrets_store')
         if isinstance(secrets_store, dict):
             custom_secrets = secrets_store.get('custom_secrets')
@@ -360,10 +278,6 @@ class Settings(BaseModel):
     def secrets_store_serializer(self, secrets: Secrets, info: SerializationInfo):
         return {'provider_tokens': {}}
 
-    # ------------------------------------------------------------------
-    # Factory / conversion
-    # ------------------------------------------------------------------
-
     @staticmethod
     def from_config() -> Settings | None:
         app_config = load_openhands_config()
@@ -374,15 +288,15 @@ class Settings(BaseModel):
 
         mcp_config = None
         if hasattr(app_config, 'mcp'):
-            mcp_config = app_config.mcp
+            mcp_config = app_config.mcp.model_dump(mode='python')
 
         raw_api_key = llm_config.api_key.get_secret_value()
-
         agent_vals: dict[str, Any] = {
             'agent': app_config.default_agent,
             'llm.model': llm_config.model,
             'llm.api_key': raw_api_key,
             'llm.base_url': llm_config.base_url,
+            'mcp_config': mcp_config,
             'verification.confirmation_mode': security.confirmation_mode,
             'verification.security_analyzer': security.security_analyzer,
             'max_iterations': app_config.max_iterations,
@@ -391,34 +305,43 @@ class Settings(BaseModel):
         return Settings(
             language='en',
             remote_runtime_resource_factor=app_config.sandbox.remote_runtime_resource_factor,
-            mcp_config=mcp_config,
             search_api_key=app_config.search_api_key,
             max_budget_per_task=app_config.max_budget_per_task,
             agent_settings={k: v for k, v in agent_vals.items() if v is not None},
         )
 
     def merge_with_config_settings(self) -> 'Settings':
-        """Merge config.toml MCP settings with stored settings."""
+        """Merge config.toml MCP settings with stored SDK agent_settings."""
         config_settings = Settings.from_config()
-        if not config_settings or not config_settings.mcp_config:
+        if not config_settings:
             return self
-        if not self.mcp_config:
-            self.mcp_config = config_settings.mcp_config
+
+        config_mcp_raw = config_settings.agent_settings.get('mcp_config')
+        if not config_mcp_raw:
             return self
+
+        config_mcp = MCPConfig.model_validate(config_mcp_raw)
+        current_mcp_raw = self.agent_settings.get('mcp_config')
+        if not current_mcp_raw:
+            self.agent_settings['mcp_config'] = config_mcp.model_dump(mode='python')
+            self.normalize_agent_settings()
+            return self
+
+        current_mcp = MCPConfig.model_validate(current_mcp_raw)
         merged_mcp = MCPConfig(
-            sse_servers=list(config_settings.mcp_config.sse_servers)
-            + list(self.mcp_config.sse_servers),
-            stdio_servers=list(config_settings.mcp_config.stdio_servers)
-            + list(self.mcp_config.stdio_servers),
-            shttp_servers=list(config_settings.mcp_config.shttp_servers)
-            + list(self.mcp_config.shttp_servers),
+            sse_servers=list(config_mcp.sse_servers) + list(current_mcp.sse_servers),
+            stdio_servers=list(config_mcp.stdio_servers)
+            + list(current_mcp.stdio_servers),
+            shttp_servers=list(config_mcp.shttp_servers)
+            + list(current_mcp.shttp_servers),
         )
-        self.mcp_config = merged_mcp
+        self.agent_settings['mcp_config'] = merged_mcp.model_dump(mode='python')
+        self.normalize_agent_settings()
         return self
 
     def to_agent_settings(self) -> AgentSettings:
         """Build SDK ``AgentSettings`` from persisted ``agent_settings``."""
         payload: dict[str, Any] = {}
         for key, value in self.agent_settings.items():
-            _assign_dotted_value(payload, key, value)
+            _assign_dotted_value(payload, key, _coerce_agent_setting_value(value))
         return AgentSettings.model_validate(payload)

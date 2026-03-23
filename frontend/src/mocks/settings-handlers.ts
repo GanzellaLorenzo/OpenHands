@@ -1,12 +1,14 @@
 import { http, delay, HttpResponse } from "msw";
 import { WebClientConfig } from "#/api/option-service/option.types";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { Provider, Settings } from "#/types/settings";
+import { Provider, Settings, SettingsValue } from "#/types/settings";
 
-/**
- * Creates a mock WebClientConfig with all required fields.
- * Use this helper to create test config objects with sensible defaults.
- */
+const DEFAULT_AGENT_SETTINGS = DEFAULT_SETTINGS.agent_settings ?? {};
+const DEFAULT_MODEL =
+  typeof DEFAULT_AGENT_SETTINGS["llm.model"] === "string"
+    ? DEFAULT_AGENT_SETTINGS["llm.model"]
+    : "openhands/claude-opus-4-5-20251101";
+
 export const createMockWebClientConfig = (
   overrides: Partial<WebClientConfig> = {},
 ): WebClientConfig => ({
@@ -34,7 +36,9 @@ export const createMockWebClientConfig = (
   ...overrides,
 });
 
-const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
+const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
+  Settings["agent_settings_schema"]
+> = {
   model_name: "AgentSettings",
   sections: [
     {
@@ -47,7 +51,7 @@ const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
           section: "llm",
           section_label: "LLM",
           value_type: "string",
-          default: DEFAULT_SETTINGS.llm_model,
+          default: DEFAULT_MODEL,
           choices: [],
           depends_on: [],
           prominence: "critical",
@@ -121,32 +125,15 @@ const MOCK_SDK_SETTINGS_SCHEMA: NonNullable<Settings["sdk_settings_schema"]> = {
 };
 
 export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
-  llm_model: DEFAULT_SETTINGS.llm_model,
-  llm_base_url: DEFAULT_SETTINGS.llm_base_url,
-  llm_api_key: null,
-  llm_api_key_set: DEFAULT_SETTINGS.llm_api_key_set,
-  search_api_key_set: DEFAULT_SETTINGS.search_api_key_set,
-  agent: DEFAULT_SETTINGS.agent,
-  language: DEFAULT_SETTINGS.language,
-  confirmation_mode: DEFAULT_SETTINGS.confirmation_mode,
-  security_analyzer: DEFAULT_SETTINGS.security_analyzer,
-  remote_runtime_resource_factor:
-    DEFAULT_SETTINGS.remote_runtime_resource_factor,
+  ...DEFAULT_SETTINGS,
   provider_tokens_set: {},
-  enable_default_condenser: DEFAULT_SETTINGS.enable_default_condenser,
-  condenser_max_size: DEFAULT_SETTINGS.condenser_max_size,
-  enable_sound_notifications: DEFAULT_SETTINGS.enable_sound_notifications,
-  enable_proactive_conversation_starters:
-    DEFAULT_SETTINGS.enable_proactive_conversation_starters,
-  enable_solvability_analysis: DEFAULT_SETTINGS.enable_solvability_analysis,
-  user_consents_to_analytics: DEFAULT_SETTINGS.user_consents_to_analytics,
-  max_budget_per_task: DEFAULT_SETTINGS.max_budget_per_task,
-  sdk_settings_schema: MOCK_SDK_SETTINGS_SCHEMA,
-  sdk_settings_values: {
+  agent_settings_schema: MOCK_AGENT_SETTINGS_SCHEMA,
+  agent_settings: {
+    ...DEFAULT_AGENT_SETTINGS,
     "critic.mode": "finish_and_message",
     "critic.enabled": false,
     "llm.api_key": null,
-    "llm.model": DEFAULT_SETTINGS.llm_model,
+    "llm.model": DEFAULT_MODEL,
   },
 };
 
@@ -157,7 +144,7 @@ const MOCK_USER_PREFERENCES: {
 };
 
 export const resetTestHandlersMockSettings = () => {
-  MOCK_USER_PREFERENCES.settings = MOCK_DEFAULT_USER_SETTINGS;
+  MOCK_USER_PREFERENCES.settings = structuredClone(MOCK_DEFAULT_USER_SETTINGS);
 };
 
 export const SETTINGS_HANDLERS = [
@@ -230,37 +217,39 @@ export const SETTINGS_HANDLERS = [
     const body = (await request.json()) as Record<string, unknown> | null;
 
     if (body) {
-      const current = MOCK_USER_PREFERENCES.settings || {
-        ...MOCK_DEFAULT_USER_SETTINGS,
-      };
-      const sdkFieldKeys = new Set(
-        current.sdk_settings_schema?.sections.flatMap((section) =>
+      const current =
+        MOCK_USER_PREFERENCES.settings ||
+        structuredClone(MOCK_DEFAULT_USER_SETTINGS);
+      const agentFieldKeys = new Set(
+        current.agent_settings_schema?.sections.flatMap((section) =>
           section.fields.map((field) => field.key),
         ) ?? [],
       );
-      const sdkSettingsValues = {
-        ...(current.sdk_settings_values ?? {}),
+      const agentSettings = {
+        ...(current.agent_settings ?? {}),
+      } as Record<string, SettingsValue>;
+
+      const nextSettings: Settings = {
+        ...current,
+        ...(body as Partial<Settings>),
       };
 
       for (const [key, value] of Object.entries(body)) {
-        if (sdkFieldKeys.has(key)) {
-          sdkSettingsValues[key] =
+        if (agentFieldKeys.has(key)) {
+          agentSettings[key] =
             value === null ||
             typeof value === "boolean" ||
             typeof value === "number" ||
             typeof value === "string" ||
             Array.isArray(value) ||
             (typeof value === "object" && value !== null)
-              ? (value as NonNullable<Settings["sdk_settings_values"]>[string])
+              ? (value as SettingsValue)
               : null;
         }
       }
 
-      MOCK_USER_PREFERENCES.settings = {
-        ...current,
-        ...(body as Partial<Settings>),
-        sdk_settings_values: sdkSettingsValues,
-      };
+      nextSettings.agent_settings = agentSettings;
+      MOCK_USER_PREFERENCES.settings = nextSettings;
 
       return HttpResponse.json(null, { status: 200 });
     }

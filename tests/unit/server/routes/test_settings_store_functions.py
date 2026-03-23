@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from openhands.core.config.mcp_config import MCPConfig, MCPStdioServerConfig
 from openhands.integrations.provider import ProviderToken
 from openhands.integrations.service_types import ProviderType
 from openhands.server.routes.secrets import (
@@ -16,7 +15,7 @@ from openhands.server.routes.secrets import (
 from openhands.server.routes.secrets import (
     check_provider_tokens,
 )
-from openhands.server.routes.settings import _apply_settings_payload, store_llm_settings
+from openhands.server.routes.settings import _apply_settings_payload
 from openhands.server.settings import POSTProviderModel
 from openhands.storage import get_file_store
 from openhands.storage.data_models.secrets import Secrets
@@ -55,6 +54,15 @@ _TEST_SDK_SCHEMA = {
 def _make_settings(**sdk_vals: Any) -> Settings:
     """Helper to create Settings with agent_settings."""
     return Settings(agent_settings=sdk_vals)
+
+
+def _agent_value(settings: Settings, key: str) -> Any:
+    return settings.get_agent_setting(key)
+
+
+def _secret_value(settings: Settings, key: str) -> str | None:
+    secret = settings.get_secret_agent_setting(key)
+    return secret.get_secret_value() if secret else None
 
 
 # Mock functions to simulate the actual functions in settings.py
@@ -179,9 +187,9 @@ def test_apply_payload_sdk_keys_stored_and_readable():
     assert result.agent_settings['llm.api_key'] == 'test-api-key'
     assert result.agent_settings['llm.base_url'] == 'https://api.example.com'
     # Properties read from agent_settings
-    assert result.llm_model == 'gpt-4'
-    assert result.llm_api_key.get_secret_value() == 'test-api-key'
-    assert result.llm_base_url == 'https://api.example.com'
+    assert _agent_value(result, 'llm.model') == 'gpt-4'
+    assert _secret_value(result, 'llm.api_key') == 'test-api-key'
+    assert _agent_value(result, 'llm.base_url') == 'https://api.example.com'
 
 
 def test_apply_payload_updates_existing():
@@ -202,9 +210,9 @@ def test_apply_payload_updates_existing():
 
     result = _apply_settings_payload(payload, existing, _TEST_SDK_SCHEMA)
 
-    assert result.llm_model == 'gpt-4'
-    assert result.llm_api_key.get_secret_value() == 'new-api-key'
-    assert result.llm_base_url == 'https://new.example.com'
+    assert _agent_value(result, 'llm.model') == 'gpt-4'
+    assert _secret_value(result, 'llm.api_key') == 'new-api-key'
+    assert _agent_value(result, 'llm.base_url') == 'https://new.example.com'
 
 
 def test_apply_payload_preserves_secrets_when_not_provided():
@@ -220,58 +228,41 @@ def test_apply_payload_preserves_secrets_when_not_provided():
 
     result = _apply_settings_payload(payload, existing, _TEST_SDK_SCHEMA)
 
-    assert result.llm_model == 'gpt-4'
-    assert result.llm_api_key.get_secret_value() == 'existing-api-key'
-    assert result.llm_base_url is None
+    assert _agent_value(result, 'llm.model') == 'gpt-4'
+    assert _secret_value(result, 'llm.api_key') == 'existing-api-key'
+    assert _agent_value(result, 'llm.base_url') is None
 
 
-@pytest.mark.asyncio
-async def test_store_llm_settings_advanced_view_clear_removes_base_url():
-    settings = Settings(
-        llm_model='gpt-4',
-        llm_base_url='',
-    )
-
-    existing_settings = Settings(
-        llm_model='gpt-4',
-        llm_api_key=SecretStr('my-api-key'),
-        llm_base_url='https://my-custom-proxy.example.com',
-    )
-
-    result = await store_llm_settings(settings, existing_settings)
-
-    assert result.llm_base_url is None
-
-
-@pytest.mark.asyncio
-async def test_store_llm_settings_mcp_update_preserves_base_url():
-    settings = Settings(
-        mcp_config=MCPConfig(
-            stdio_servers=[
-                MCPStdioServerConfig(
-                    name='my-server',
-                    command='npx',
-                    args=['-y', '@my/mcp-server'],
-                    env={
-                        'API_TOKEN': 'secret123',
-                        'ENDPOINT': 'https://example.com',
-                    },
-                )
-            ],
-        ),
-    )
-
+def test_apply_payload_mcp_update_preserves_existing_llm_settings():
     existing_settings = Settings(
         llm_model='anthropic/claude-sonnet-4-5-20250929',
         llm_api_key=SecretStr('existing-api-key'),
         llm_base_url='https://my-custom-proxy.example.com',
     )
 
-    result = await store_llm_settings(settings, existing_settings)
+    result = _apply_settings_payload(
+        {
+            'mcp_config': {
+                'stdio_servers': [
+                    {
+                        'name': 'my-server',
+                        'command': 'npx',
+                        'args': ['-y', '@my/mcp-server'],
+                        'env': {
+                            'API_TOKEN': 'secret123',
+                            'ENDPOINT': 'https://example.com',
+                        },
+                    }
+                ]
+            }
+        },
+        existing_settings,
+        _TEST_SDK_SCHEMA,
+    )
 
-    assert result.llm_model == 'anthropic/claude-sonnet-4-5-20250929'
-    assert result.llm_api_key.get_secret_value() == 'existing-api-key'
-    assert result.llm_base_url == 'https://my-custom-proxy.example.com'
+    assert _agent_value(result, 'llm.model') == 'anthropic/claude-sonnet-4-5-20250929'
+    assert _secret_value(result, 'llm.api_key') == 'existing-api-key'
+    assert _agent_value(result, 'llm.base_url') == 'https://my-custom-proxy.example.com'
 
 
 def test_apply_payload_preserves_secrets_when_null():
@@ -311,9 +302,9 @@ def test_apply_payload_mcp_preserves_llm_settings():
 
     result = _apply_settings_payload(payload, existing, _TEST_SDK_SCHEMA)
 
-    assert result.llm_model == 'anthropic/claude-sonnet-4-5-20250929'
-    assert result.llm_api_key.get_secret_value() == 'existing-api-key'
-    assert result.llm_base_url == 'https://my-custom-proxy.example.com'
+    assert _agent_value(result, 'llm.model') == 'anthropic/claude-sonnet-4-5-20250929'
+    assert _secret_value(result, 'llm.api_key') == 'existing-api-key'
+    assert _agent_value(result, 'llm.base_url') == 'https://my-custom-proxy.example.com'
 
 
 def test_apply_payload_non_sdk_flat_keys_applied():
@@ -338,8 +329,8 @@ def test_apply_payload_verification_stored_and_readable():
 
     result = _apply_settings_payload(payload, None, _TEST_SDK_SCHEMA)
 
-    assert result.confirmation_mode is True
-    assert result.security_analyzer == 'llm'
+    assert _agent_value(result, 'verification.confirmation_mode') is True
+    assert _agent_value(result, 'verification.security_analyzer') == 'llm'
     assert result.agent_settings['verification.confirmation_mode'] is True
 
 
@@ -360,9 +351,8 @@ def test_legacy_flat_fields_migrate_to_agent_vals():
     assert s.agent_settings['llm.base_url'] == 'https://example.com'
     assert s.agent_settings['agent'] == 'CodeActAgent'
     assert s.agent_settings['verification.confirmation_mode'] is True
-    # Properties work
-    assert s.llm_model == 'gpt-4'
-    assert s.agent == 'CodeActAgent'
+    assert _agent_value(s, 'llm.model') == 'gpt-4'
+    assert _agent_value(s, 'agent') == 'CodeActAgent'
 
 
 def test_agent_settings_normalized_with_schema_version_and_extras():

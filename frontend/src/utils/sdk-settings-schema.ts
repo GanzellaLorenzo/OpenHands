@@ -32,11 +32,11 @@ function getSchemaFields(schema: SettingsSchema): SettingsFieldSchema[] {
   return schema.sections.flatMap((section) => section.fields);
 }
 
-function getCurrentSettingValue(
+export function getAgentSettingValue(
   settings: Settings,
   key: string,
 ): SettingsValue {
-  return settings.sdk_settings_values?.[key] ?? null;
+  return settings.agent_settings?.[key] ?? null;
 }
 
 function isChoiceField(field: SettingsFieldSchema): boolean {
@@ -141,7 +141,7 @@ function normalizeComparableValue(
 export function buildInitialSettingsFormValues(
   settings: Settings,
 ): SettingsFormValues {
-  const schema = settings.sdk_settings_schema;
+  const schema = settings.agent_settings_schema;
   if (!schema) {
     return {};
   }
@@ -149,7 +149,7 @@ export function buildInitialSettingsFormValues(
   return Object.fromEntries(
     getSchemaFields(schema).map((field) => [
       field.key,
-      normalizeFieldValue(field, getCurrentSettingValue(settings, field.key)),
+      normalizeFieldValue(field, getAgentSettingValue(settings, field.key)),
     ]),
   );
 }
@@ -160,7 +160,7 @@ export function inferInitialView(
   settings: Settings,
   schemaOverride?: SettingsSchema | null,
 ): SettingsView {
-  const schema = schemaOverride ?? settings.sdk_settings_schema;
+  const schema = schemaOverride ?? settings.agent_settings_schema;
   if (!schema) {
     return "basic";
   }
@@ -170,7 +170,7 @@ export function inferInitialView(
 
   for (const field of getSchemaFields(schema)) {
     if (!isCriticalField(field)) {
-      const currentValue = getCurrentSettingValue(settings, field.key);
+      const currentValue = getAgentSettingValue(settings, field.key);
       const isDifferent =
         normalizeComparableValue(
           field,

@@ -135,11 +135,20 @@ class TestLiveStatusAppConversationService:
 
     def _mock_user_to_agent_settings(self) -> AgentSettings:
         agent_vals = dict(self.mock_user.agent_settings)
-        agent_vals.setdefault('llm.model', self.mock_user.llm_model or '')
+        model = self.mock_user.llm_model or ''
+        agent_vals.setdefault('llm.model', model)
         if self.mock_user.llm_api_key:
             agent_vals.setdefault('llm.api_key', self.mock_user.llm_api_key)
-        if self.mock_user.llm_base_url:
-            agent_vals.setdefault('llm.base_url', self.mock_user.llm_base_url)
+        if self.mock_user.mcp_config and 'mcp_config' not in agent_vals:
+            agent_vals['mcp_config'] = self.mock_user.mcp_config.model_dump(
+                mode='python'
+            )
+        if (
+            self.mock_user.llm_base_url
+            and 'llm.base_url' not in agent_vals
+            and not model.startswith('openhands/')
+        ):
+            agent_vals['llm.base_url'] = self.mock_user.llm_base_url
         return Settings(agent_settings=agent_vals).to_agent_settings()
 
     def test_apply_suggested_task_sets_prompt_and_trigger(self):
@@ -529,8 +538,10 @@ class TestLiveStatusAppConversationService:
         assert llm.max_input_tokens == 456
 
     @pytest.mark.asyncio
-    async def test_configure_llm_and_mcp_openhands_model_prefers_user_base_url(self):
-        """openhands/* model uses user.llm_base_url when provided."""
+    async def test_configure_llm_and_mcp_openhands_model_uses_sdk_default_proxy_url(
+        self,
+    ):
+        """openhands/* model follows the SDK-managed default proxy URL."""
         # Arrange
         self.mock_user.llm_model = 'openhands/special'
         self.mock_user.llm_base_url = 'https://user-llm.example.com'
@@ -542,11 +553,13 @@ class TestLiveStatusAppConversationService:
         )
 
         # Assert
-        assert llm.base_url == 'https://user-llm.example.com'
+        assert llm.base_url == 'https://llm-proxy.app.all-hands.dev/'
 
     @pytest.mark.asyncio
-    async def test_configure_llm_and_mcp_openhands_model_uses_provider_default(self):
-        """openhands/* model falls back to configured provider base URL."""
+    async def test_configure_llm_and_mcp_openhands_model_ignores_provider_base_url(
+        self,
+    ):
+        """openhands/* model follows the SDK proxy URL even when a provider URL exists."""
         # Arrange
         self.mock_user.llm_model = 'openhands/default'
         self.mock_user.llm_base_url = None
@@ -558,11 +571,11 @@ class TestLiveStatusAppConversationService:
         )
 
         # Assert
-        assert llm.base_url == 'https://provider.example.com'
+        assert llm.base_url == 'https://llm-proxy.app.all-hands.dev/'
 
     @pytest.mark.asyncio
     async def test_configure_llm_and_mcp_openhands_model_no_base_urls(self):
-        """openhands/* model sets base_url to None when no sources available."""
+        """openhands/* model still uses the SDK proxy when no other URLs exist."""
         # Arrange
         self.mock_user.llm_model = 'openhands/default'
         self.mock_user.llm_base_url = None
@@ -1783,12 +1796,13 @@ class TestLiveStatusAppConversationService:
 
     @pytest.mark.asyncio
     async def test_configure_llm_and_mcp_custom_config_error_handling(self):
-        """Test _configure_llm_and_mcp handles errors in custom MCP config gracefully."""
+        """Test _configure_llm_and_mcp handles invalid custom MCP config gracefully."""
         # Arrange
-        self.mock_user.mcp_config = Mock()
-        # Simulate error when accessing sse_servers
-        self.mock_user.mcp_config.sse_servers = property(
-            lambda self: (_ for _ in ()).throw(Exception('Config error'))
+        bad_agent_settings = Mock()
+        bad_agent_settings.mcp_config = Mock()
+        self.mock_user.to_agent_settings = Mock(return_value=bad_agent_settings)
+        self.service._configure_llm = Mock(
+            return_value=LLM.model_validate({'model': 'gpt-4', 'usage_id': 'agent'})
         )
         self.mock_user_context.get_mcp_api_key.return_value = None
 
@@ -1801,7 +1815,6 @@ class TestLiveStatusAppConversationService:
         assert isinstance(llm, LLM)
         mcp_servers = mcp_config['mcpServers']
         assert 'default' in mcp_servers
-        # Custom servers should not be added due to error
 
     @pytest.mark.asyncio
     async def test_configure_llm_and_mcp_sdk_format_with_mcpservers_wrapper(self):
@@ -2309,11 +2322,20 @@ class TestPluginHandling:
 
     def _mock_user_to_agent_settings(self) -> AgentSettings:
         agent_vals = dict(self.mock_user.agent_settings)
-        agent_vals.setdefault('llm.model', self.mock_user.llm_model or '')
+        model = self.mock_user.llm_model or ''
+        agent_vals.setdefault('llm.model', model)
         if self.mock_user.llm_api_key:
             agent_vals.setdefault('llm.api_key', self.mock_user.llm_api_key)
-        if self.mock_user.llm_base_url:
-            agent_vals.setdefault('llm.base_url', self.mock_user.llm_base_url)
+        if self.mock_user.mcp_config and 'mcp_config' not in agent_vals:
+            agent_vals['mcp_config'] = self.mock_user.mcp_config.model_dump(
+                mode='python'
+            )
+        if (
+            self.mock_user.llm_base_url
+            and 'llm.base_url' not in agent_vals
+            and not model.startswith('openhands/')
+        ):
+            agent_vals['llm.base_url'] = self.mock_user.llm_base_url
         return Settings(agent_settings=agent_vals).to_agent_settings()
 
     def test_construct_initial_message_with_plugin_params_no_plugins(self):
