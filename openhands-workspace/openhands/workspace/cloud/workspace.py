@@ -148,9 +148,7 @@ class OpenHandsCloudWorkspace(RemoteWorkspace):
     )
     automation_run_id: str | None = Field(
         default=None,
-        description=(
-            "Automation run ID included in the completion callback payload."
-        ),
+        description=("Automation run ID included in the completion callback payload."),
     )
 
     # Private state
@@ -692,8 +690,6 @@ class OpenHandsCloudWorkspace(RemoteWorkspace):
         try:
             with httpx.Client(timeout=10.0) as cb_client:
                 resp = cb_client.post(callback_url, json=payload)
-                logger.info(
-                    f"Completion callback sent ({status}): {resp.status_code}"
-                )
+                logger.info(f"Completion callback sent ({status}): {resp.status_code}")
         except Exception as e:
             logger.warning(f"Completion callback failed: {e}")

@@ -520,7 +520,7 @@ def test_callback_on_successful_exit():
         ws.__exit__(None, None, None)
 
         mock_client.post.assert_called_once()
-        url, = mock_client.post.call_args.args
+        (url,) = mock_client.post.call_args.args
         payload = mock_client.post.call_args.kwargs["json"]
         assert url == "https://svc.test/complete"
         assert payload["status"] == "COMPLETED"
