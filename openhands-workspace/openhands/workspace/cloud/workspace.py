@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 from urllib.request import urlopen
 
@@ -197,11 +198,43 @@ class OpenHandsCloudWorkspace(RemoteWorkspace):
                 raise
 
     def _init_saas_runtime_mode(self) -> None:
-        """Initialize in SaaS runtime mode — connect to local agent-server."""
-        self.host = f"http://localhost:{self.agent_server_port}"
+        """Initialize in SaaS runtime mode — connect to local agent-server.
+
+        Reads sandbox identity from environment variables so that
+        ``get_llm()`` and ``get_secrets()`` can call the Cloud API's
+        sandbox-scoped settings endpoints.
+
+        Expected env vars (injected by the automation dispatcher):
+          ``SANDBOX_ID``       — this sandbox's Cloud API identifier
+          ``SESSION_API_KEY``  — session key for sandbox settings auth
+
+        Falls back to ``OH_SESSION_API_KEYS_0`` (set by the runtime)
+        if ``SESSION_API_KEY`` is not present.
+        """
+        port = os.environ.get("AGENT_SERVER_PORT", str(self.agent_server_port))
+        self.host = f"http://localhost:{port}"
         logger.info(
             f"SaaS runtime mode: connecting to local agent-server at {self.host}"
         )
+
+        # Discover sandbox identity from env vars
+        self._sandbox_id = self.sandbox_id or os.environ.get("SANDBOX_ID")
+        self._session_api_key = os.environ.get(
+            "SESSION_API_KEY", os.environ.get("OH_SESSION_API_KEYS_0")
+        )
+
+        if not self._sandbox_id:
+            logger.warning(
+                "SANDBOX_ID env var not set — get_llm()/get_secrets() "
+                "will not work. Set SANDBOX_ID or pass sandbox_id= to "
+                "the constructor."
+            )
+        if not self._session_api_key:
+            logger.warning(
+                "SESSION_API_KEY env var not set — sandbox settings "
+                "API calls will fail."
+            )
+
         self.reset_client()
         # Trigger parent mixin init (strips trailing slash, etc.)
         super().model_post_init(None)

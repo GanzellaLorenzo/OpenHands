@@ -164,7 +164,7 @@ def test_cleanup_deletes_sandbox():
 
             mock_request.assert_called_once_with(
                 "DELETE",
-                "https://cloud.example.com/api/v1/sandboxes",
+                "https://cloud.example.com/api/v1/sandboxes/sandbox-123",
                 params={"sandbox_id": "sandbox-123"},
                 timeout=30.0,
             )
@@ -411,8 +411,45 @@ def test_saas_runtime_mode_skips_sandbox_creation():
 
     assert workspace.saas_runtime_mode is True
     assert workspace.host == "http://localhost:60000"
+    # Without SANDBOX_ID env var or constructor param, _sandbox_id is None
     assert workspace._sandbox_id is None
 
+    workspace.cleanup()
+
+
+def test_saas_runtime_mode_sandbox_id_from_constructor():
+    """sandbox_id constructor param populates _sandbox_id in saas_runtime_mode."""
+    workspace = _make_saas_workspace(sandbox_id="sb-123")
+
+    assert workspace._sandbox_id == "sb-123"
+    workspace.cleanup()
+
+
+def test_saas_runtime_mode_sandbox_id_from_env(monkeypatch):
+    """SANDBOX_ID env var populates _sandbox_id in saas_runtime_mode."""
+    monkeypatch.setenv("SANDBOX_ID", "sb-env-456")
+    workspace = _make_saas_workspace()
+
+    assert workspace._sandbox_id == "sb-env-456"
+    workspace.cleanup()
+
+
+def test_saas_runtime_mode_session_key_from_env(monkeypatch):
+    """SESSION_API_KEY env var populates _session_api_key in saas_runtime_mode."""
+    monkeypatch.setenv("SESSION_API_KEY", "sess-key-abc")
+    workspace = _make_saas_workspace()
+
+    assert workspace._session_api_key == "sess-key-abc"
+    workspace.cleanup()
+
+
+def test_saas_runtime_mode_session_key_fallback(monkeypatch):
+    """Falls back to OH_SESSION_API_KEYS_0 if SESSION_API_KEY is unset."""
+    monkeypatch.delenv("SESSION_API_KEY", raising=False)
+    monkeypatch.setenv("OH_SESSION_API_KEYS_0", "oh-key-xyz")
+    workspace = _make_saas_workspace()
+
+    assert workspace._session_api_key == "oh-key-xyz"
     workspace.cleanup()
 
 
@@ -421,6 +458,15 @@ def test_saas_runtime_mode_custom_port():
     workspace = _make_saas_workspace(agent_server_port=9999)
 
     assert workspace.host == "http://localhost:9999"
+    workspace.cleanup()
+
+
+def test_saas_runtime_mode_port_from_env(monkeypatch):
+    """AGENT_SERVER_PORT env var overrides agent_server_port."""
+    monkeypatch.setenv("AGENT_SERVER_PORT", "7777")
+    workspace = _make_saas_workspace()
+
+    assert workspace.host == "http://localhost:7777"
     workspace.cleanup()
 
 
