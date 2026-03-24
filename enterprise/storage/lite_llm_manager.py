@@ -399,7 +399,7 @@ class LiteLlmManager:
                         )
                         # Update user_settings with the new key so it gets stored in org_member
                         user_settings.llm_api_key = SecretStr(new_key)
-                        user_settings.llm_api_key_for_byor = SecretStr(new_key)
+                        user_settings.llm_api_key_for_byor_secret = SecretStr(new_key)
 
         logger.info(
             'LiteLlmManager:migrate_lite_llm_entries:complete',

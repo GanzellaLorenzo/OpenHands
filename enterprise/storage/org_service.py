@@ -478,7 +478,6 @@ class OrgService:
         """
         return {
             'default_llm_model',
-            'default_llm_api_key_for_byor',
             'default_llm_base_url',
             'search_api_key',
             'security_analyzer',

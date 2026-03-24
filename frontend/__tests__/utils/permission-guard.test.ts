@@ -70,7 +70,6 @@ describe("createPermissionGuard", () => {
         llm_api_key: "",
         max_iterations: 100,
         llm_model: "gpt-4",
-        llm_api_key_for_byor: null,
         llm_base_url: "",
         status: "active",
       });
@@ -93,7 +92,6 @@ describe("createPermissionGuard", () => {
         llm_api_key: "",
         max_iterations: 100,
         llm_model: "gpt-4",
-        llm_api_key_for_byor: null,
         llm_base_url: "",
         status: "active",
       });
@@ -144,7 +142,6 @@ describe("createPermissionGuard", () => {
         llm_api_key: "",
         max_iterations: 100,
         llm_model: "gpt-4",
-        llm_api_key_for_byor: null,
         llm_base_url: "",
         status: "active",
       });

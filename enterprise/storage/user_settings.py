@@ -63,6 +63,4 @@ class UserSettings(Base):  # type: ignore
     def to_settings(self):
         from openhands.storage.data_models.settings import Settings
 
-        settings = Settings(agent_settings=dict(self.agent_settings or {}))
-        settings.set_agent_setting('llm.api_key', self.llm_api_key)
-        return settings
+        return Settings(agent_settings=dict(self.agent_settings or {}))

@@ -2995,7 +2995,6 @@ class TestGetMeEndpoint:
         llm_model='gpt-4',
         llm_base_url='https://api.example.com',
         max_iterations=50,
-        llm_api_key_for_byor=None,
         status_val='active',
     ):
         """Create a MeResponse for testing."""
@@ -3008,7 +3007,6 @@ class TestGetMeEndpoint:
             llm_model=llm_model,
             llm_base_url=llm_base_url,
             max_iterations=max_iterations,
-            llm_api_key_for_byor=llm_api_key_for_byor,
             status=status_val,
         )
 
@@ -3199,35 +3197,6 @@ class TestGetMeEndpoint:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data['role'] == 'admin'
-
-    @pytest.mark.asyncio
-    async def test_get_me_masks_byor_api_key(
-        self, mock_me_app, test_user_id, test_org_id
-    ):
-        """GIVEN: User has an llm_api_key_for_byor set
-        WHEN: GET /api/organizations/{org_id}/me is called
-        THEN: The llm_api_key_for_byor field is also masked
-        """
-        me_response = self._make_me_response(
-            org_id=test_org_id,
-            user_id=test_user_id,
-            llm_api_key_for_byor='****-key',  # Masked key
-        )
-
-        with patch(
-            'server.routes.orgs.OrgMemberService.get_me',
-            new_callable=AsyncMock,
-            return_value=me_response,
-        ):
-            client = TestClient(mock_me_app)
-            response = client.get(f'/api/organizations/{test_org_id}/me')
-
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data['llm_api_key_for_byor'] != 'sk-byor-secret-key'
-        assert (
-            data['llm_api_key_for_byor'] is None or '**' in data['llm_api_key_for_byor']
-        )
 
     @pytest.mark.asyncio
     async def test_get_me_role_not_found_returns_500(self, mock_me_app, test_org_id):

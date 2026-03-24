@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import binascii
-import hashlib
 import uuid
-from base64 import b64decode, b64encode
 from dataclasses import dataclass
 
-from cryptography.fernet import Fernet
 from pydantic import SecretStr
 from server.auth.token_manager import TokenManager
 from server.constants import LITE_LLM_API_URL
@@ -33,7 +29,6 @@ from openhands.utils.llm import is_openhands_model
 class SaasSettingsStore(SettingsStore):
     user_id: str
     config: OpenHandsConfig
-    ENCRYPT_VALUES = ['llm_api_key', 'llm_api_key_for_byor', 'search_api_key']
 
     async def _get_user_settings_by_keycloak_id_async(
         self, keycloak_user_id: str, session=None
@@ -229,7 +224,6 @@ class SaasSettingsStore(SettingsStore):
 
             kwargs = item.model_dump(context={'expose_secrets': True})
             kwargs.pop('agent_settings', None)
-            kwargs.pop('llm_api_key_for_byor', None)
             for model in (user, org_member):
                 for key, value in kwargs.items():
                     if hasattr(model, key):
@@ -248,52 +242,6 @@ class SaasSettingsStore(SettingsStore):
     ) -> SaasSettingsStore:
         logger.debug(f'saas_settings_store.get_instance::{user_id}')
         return SaasSettingsStore(user_id, config)
-
-    def _should_encrypt(self, key):
-        return key in self.ENCRYPT_VALUES
-
-    def _decrypt_kwargs(self, kwargs: dict):
-        fernet = self._fernet()
-        for key, value in kwargs.items():
-            try:
-                if value is None:
-                    continue
-                if self._should_encrypt(key):
-                    if isinstance(value, SecretStr):
-                        value = fernet.decrypt(
-                            b64decode(value.get_secret_value().encode())
-                        ).decode()
-                    else:
-                        value = fernet.decrypt(b64decode(value.encode())).decode()
-                    kwargs[key] = value
-            except binascii.Error:
-                pass  # Key is in legacy format...
-
-    def _encrypt_kwargs(self, kwargs: dict):
-        fernet = self._fernet()
-        for key, value in kwargs.items():
-            if value is None:
-                continue
-
-            if isinstance(value, dict):
-                self._encrypt_kwargs(value)
-                continue
-
-            if self._should_encrypt(key):
-                if isinstance(value, SecretStr):
-                    value = b64encode(
-                        fernet.encrypt(value.get_secret_value().encode())
-                    ).decode()
-                else:
-                    value = b64encode(fernet.encrypt(value.encode())).decode()
-                kwargs[key] = value
-
-    def _fernet(self):
-        if not self.config.jwt_secret:
-            raise ValueError('jwt_secret must be defined on config')
-        jwt_secret = self.config.jwt_secret.get_secret_value()
-        fernet_key = b64encode(hashlib.sha256(jwt_secret.encode()).digest())
-        return Fernet(fernet_key)
 
     async def _ensure_api_key(
         self, item: Settings, org_id: str, openhands_type: bool = False

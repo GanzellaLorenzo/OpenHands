@@ -240,8 +240,10 @@ class TestLiteLlmManager:
 
                     assert result is not None
                     assert _agent_value(result, 'agent') == 'CodeActAgent'
-                    assert (
-                        _agent_value(result, 'llm.model') == get_default_litellm_model()
+                    assert _agent_value(
+                        result, 'llm.model'
+                    ) == get_default_litellm_model().replace(
+                        'litellm_proxy/', 'openhands/'
                     )
                     assert _secret_value(result, 'llm.api_key') == 'test-key'
                     assert _agent_value(result, 'llm.base_url') == 'http://test.com'
@@ -289,7 +291,9 @@ class TestLiteLlmManager:
 
             assert result is not None
             assert _agent_value(result, 'agent') == 'CodeActAgent'
-            assert _agent_value(result, 'llm.model') == get_default_litellm_model()
+            assert _agent_value(
+                result, 'llm.model'
+            ) == get_default_litellm_model().replace('litellm_proxy/', 'openhands/')
             assert _secret_value(result, 'llm.api_key') == 'test-api-key'
             assert _agent_value(result, 'llm.base_url') == 'http://test.com'
 
@@ -765,8 +769,9 @@ class TestLiteLlmManager:
                                 result.llm_api_key.get_secret_value()
                                 == 'new-generated-key'
                             )
+                            assert result.llm_api_key_for_byor_secret is not None
                             assert (
-                                result.llm_api_key_for_byor.get_secret_value()
+                                result.llm_api_key_for_byor_secret.get_secret_value()
                                 == 'new-generated-key'
                             )
 

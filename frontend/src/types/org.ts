@@ -11,7 +11,6 @@ export interface Organization {
   security_analyzer: string;
   confirmation_mode: boolean;
   default_llm_model: string;
-  default_llm_api_key_for_byor: string;
   default_llm_base_url: string;
   remote_runtime_resource_factor: number;
   enable_default_condenser: boolean;
@@ -41,7 +40,6 @@ export interface OrganizationMember {
   llm_api_key: string;
   max_iterations: number;
   llm_model: string;
-  llm_api_key_for_byor: string | null;
   llm_base_url: string;
   status: "active" | "invited" | "inactive";
 }

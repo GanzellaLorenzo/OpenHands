@@ -23,6 +23,7 @@ with patch('storage.database.a_session_maker'):
     from server.constants import (
         LITE_LLM_API_URL,
     )
+    from storage.encrypt_utils import decrypt_legacy_value, encrypt_legacy_value
     from storage.saas_settings_store import SaasSettingsStore
     from storage.user_settings import UserSettings
 
@@ -93,12 +94,20 @@ def settings_store(async_session_maker, mock_config):
             # Decrypt and convert to Settings
             kwargs = {}
             for column in UserSettings.__table__.columns:
-                if column.name != 'keycloak_user_id':
-                    value = getattr(user_settings, column.name, None)
-                    if value is not None:
-                        kwargs[column.name] = value
+                if column.name == 'keycloak_user_id':
+                    continue
+                value = getattr(user_settings, column.name, None)
+                if value is None:
+                    continue
+                if column.name in {
+                    'llm_api_key',
+                    'llm_api_key_for_byor',
+                    'search_api_key',
+                    'sandbox_api_key',
+                }:
+                    value = decrypt_legacy_value(value)
+                kwargs[column.name] = value
 
-            store._decrypt_kwargs(kwargs)
             settings = Settings(**kwargs)
             settings.email = 'test@example.com'
             settings.email_verified = True
@@ -118,7 +127,10 @@ def settings_store(async_session_maker, mock_config):
                 del item_dict['secrets_store']
 
             # Encrypt the data before storing
-            store._encrypt_kwargs(item_dict)
+            for key in ('llm_api_key', 'search_api_key', 'sandbox_api_key'):
+                value = item_dict.get(key)
+                if value is not None:
+                    item_dict[key] = encrypt_legacy_value(value)
             item_dict['agent_settings'] = item.normalized_agent_settings(
                 strip_secret_values=True
             )
@@ -342,9 +354,12 @@ def org_with_multiple_members_fixture(session_maker):
             user_id=admin_user_id,
             role_id=10,
             llm_api_key='admin-initial-key',
-            llm_model='old-model-v1',
-            llm_base_url='http://old-url-1.com',
-            max_iterations=10,
+            agent_settings={
+                'schema_version': 1,
+                'llm.model': 'old-model-v1',
+                'llm.base_url': 'http://old-url-1.com',
+                'max_iterations': 10,
+            },
             status='active',
         )
         session.add(admin_member)
@@ -354,9 +369,12 @@ def org_with_multiple_members_fixture(session_maker):
             user_id=member1_user_id,
             role_id=10,
             llm_api_key='member1-initial-key',
-            llm_model='old-model-v2',
-            llm_base_url='http://old-url-2.com',
-            max_iterations=20,
+            agent_settings={
+                'schema_version': 1,
+                'llm.model': 'old-model-v2',
+                'llm.base_url': 'http://old-url-2.com',
+                'max_iterations': 20,
+            },
             status='active',
         )
         session.add(member1)
@@ -366,9 +384,12 @@ def org_with_multiple_members_fixture(session_maker):
             user_id=member2_user_id,
             role_id=10,
             llm_api_key='member2-initial-key',
-            llm_model='old-model-v3',
-            llm_base_url='http://old-url-3.com',
-            max_iterations=30,
+            agent_settings={
+                'schema_version': 1,
+                'llm.model': 'old-model-v3',
+                'llm.base_url': 'http://old-url-3.com',
+                'max_iterations': 30,
+            },
             status='active',
         )
         session.add(member2)

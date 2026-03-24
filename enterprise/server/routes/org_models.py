@@ -149,7 +149,6 @@ class OrgResponse(BaseModel):
     security_analyzer: str | None = None
     confirmation_mode: bool | None = None
     default_llm_model: str | None = None
-    default_llm_api_key_for_byor: str | None = None
     default_llm_base_url: str | None = None
     remote_runtime_resource_factor: int | None = None
     enable_default_condenser: bool = True
@@ -192,7 +191,6 @@ class OrgResponse(BaseModel):
             security_analyzer=org.security_analyzer,
             confirmation_mode=org.confirmation_mode,
             default_llm_model=org.default_llm_model,
-            default_llm_api_key_for_byor=None,
             default_llm_base_url=org.default_llm_base_url,
             remote_runtime_resource_factor=org.remote_runtime_resource_factor,
             enable_default_condenser=org.enable_default_condenser
@@ -249,7 +247,6 @@ class OrgUpdate(BaseModel):
 
     # LLM settings (require admin/owner role)
     default_llm_model: str | None = None
-    default_llm_api_key_for_byor: str | None = None
     default_llm_base_url: str | None = None
     search_api_key: str | None = None
     security_analyzer: str | None = None
@@ -401,7 +398,6 @@ class MeResponse(BaseModel):
     llm_api_key: str
     max_iterations: int | None = None
     llm_model: str | None = None
-    llm_api_key_for_byor: str | None = None
     llm_base_url: str | None = None
     status: str | None = None
 
@@ -423,19 +419,8 @@ class MeResponse(BaseModel):
         member: OrgMember,
         role: Role,
         email: str,
-        llm_api_key_for_byor: str | SecretStr | None = None,
     ) -> 'MeResponse':
-        """Create a MeResponse from an OrgMember, Role, and user email.
-
-        Args:
-            member: The OrgMember entity
-            role: The Role entity (provides role name)
-            email: The user's email address
-            llm_api_key_for_byor: Optional BYOR key from the user's settings record
-
-        Returns:
-            MeResponse with masked API keys
-        """
+        """Create a MeResponse from an OrgMember, Role, and user email."""
         agent_settings = dict(member.agent_settings or {})
         return cls(
             org_id=str(member.org_id),
@@ -445,7 +430,6 @@ class MeResponse(BaseModel):
             llm_api_key=cls._mask_key(member.llm_api_key),
             max_iterations=agent_settings.get('max_iterations'),
             llm_model=agent_settings.get('llm.model'),
-            llm_api_key_for_byor=cls._mask_key(llm_api_key_for_byor) or None,
             llm_base_url=agent_settings.get('llm.base_url'),
             status=member.status,
         )

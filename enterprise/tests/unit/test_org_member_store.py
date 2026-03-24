@@ -49,15 +49,12 @@ def test_get_kwargs_from_user_settings_uses_agent_settings_as_source_of_truth():
     )
 
 
-def test_get_agent_settings_from_org_member_prefers_canonical_json_over_legacy_columns():
+def test_get_agent_settings_from_org_member_uses_canonical_snapshot_json():
     org_member = OrgMember(
         org_id=uuid.uuid4(),
         user_id=uuid.uuid4(),
         role_id=1,
         llm_api_key='legacy-secret',
-        llm_model='legacy-model',
-        llm_base_url='https://legacy.example.com',
-        max_iterations=9,
         agent_settings={
             'schema_version': 1,
             'agent': 'CodeActAgent',
@@ -337,9 +334,12 @@ async def test_add_user_to_org_with_llm_settings(async_session_maker):
             role_id=role_id,
             llm_api_key='test-api-key',
             status='active',
-            llm_model='claude-sonnet-4',
-            llm_base_url='https://api.example.com',
-            max_iterations=50,
+            agent_settings={
+                'schema_version': 1,
+                'llm.model': 'claude-sonnet-4',
+                'llm.base_url': 'https://api.example.com',
+                'max_iterations': 50,
+            },
         )
 
     # Assert
@@ -1043,8 +1043,11 @@ async def test_update_all_members_llm_settings_async_with_non_encrypted_fields(
             user_id=user.id,
             role_id=role.id,
             llm_api_key='test-key',
-            llm_model='old-model',
-            max_iterations=10,
+            agent_settings={
+                'schema_version': 1,
+                'llm.model': 'old-model',
+                'max_iterations': 10,
+            },
             status='active',
         )
         session.add(org_member)
@@ -1108,7 +1111,10 @@ async def test_update_all_members_llm_settings_async_with_empty_settings(
             user_id=user.id,
             role_id=role.id,
             llm_api_key='original-key',
-            llm_model='original-model',
+            agent_settings={
+                'schema_version': 1,
+                'llm.model': 'original-model',
+            },
             status='active',
         )
         session.add(org_member)

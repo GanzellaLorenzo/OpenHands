@@ -40,7 +40,6 @@ function createMinimalOrg(
     security_analyzer: "",
     confirmation_mode: false,
     default_llm_model: "",
-    default_llm_api_key_for_byor: "",
     default_llm_base_url: "",
     remote_runtime_resource_factor: 0,
     enable_default_condenser: false,

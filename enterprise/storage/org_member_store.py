@@ -27,19 +27,10 @@ class OrgMemberStore:
         role_id: int,
         llm_api_key: str,
         status: Optional[str] = None,
-        llm_model: Optional[str] = None,
-        llm_base_url: Optional[str] = None,
-        max_iterations: Optional[int] = None,
         agent_settings: Optional[dict] = None,
     ) -> OrgMember:
         """Add a user to an organization with a specific role."""
         agent_settings = dict(agent_settings or {})
-        if llm_model is not None:
-            agent_settings['llm.model'] = llm_model
-        if llm_base_url is not None:
-            agent_settings['llm.base_url'] = llm_base_url
-        if max_iterations is not None:
-            agent_settings['max_iterations'] = max_iterations
 
         async with a_session_maker() as session:
             org_member = OrgMember(
@@ -155,17 +146,8 @@ class OrgMemberStore:
             return True
 
     @staticmethod
-    def get_agent_settings_from_org_member(org_member: OrgMember) -> dict:
+    def get_agent_settings_from_org_member(org_member: OrgMember) -> dict[str, object]:
         agent_settings = dict(org_member.agent_settings or {})
-        legacy_values = getattr(org_member, '__dict__', {})
-        for attr, key in (
-            ('llm_model', 'llm.model'),
-            ('llm_base_url', 'llm.base_url'),
-            ('max_iterations', 'max_iterations'),
-        ):
-            value = legacy_values.get(attr)
-            if agent_settings.get(key) is None and value is not None:
-                agent_settings[key] = value
         if agent_settings and 'schema_version' not in agent_settings:
             agent_settings['schema_version'] = 1
         return agent_settings
