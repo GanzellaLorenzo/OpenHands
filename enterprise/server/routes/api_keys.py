@@ -4,12 +4,14 @@ from typing import cast
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, field_validator
 from server.auth.saas_user_auth import SaasUserAuth
+from sqlalchemy import select
 from storage.api_key import ApiKey
 from storage.api_key_store import ApiKeyStore
+from storage.database import a_session_maker
+from storage.encrypt_utils import decrypt_legacy_value, encrypt_legacy_value
 from storage.lite_llm_manager import LiteLlmManager
-from storage.org_member import OrgMember
-from storage.org_member_store import OrgMemberStore
 from storage.org_service import OrgService
+from storage.user_settings import UserSettings
 from storage.user_store import UserStore
 
 from openhands.core.logger import openhands_logger as logger
@@ -20,39 +22,34 @@ from openhands.server.user_auth.user_auth import AuthType
 # Helper functions for BYOR API key management
 async def get_byor_key_from_db(user_id: str) -> str | None:
     """Get the BYOR key from the database for a user."""
-    user = await UserStore.get_user_by_id(user_id)
-    if not user:
+    async with a_session_maker() as session:
+        result = await session.execute(
+            select(UserSettings).filter(UserSettings.keycloak_user_id == user_id)
+        )
+        user_settings = result.scalars().first()
+
+    if not user_settings or not user_settings.llm_api_key_for_byor:
         return None
 
-    current_org_id = user.current_org_id
-    current_org_member: OrgMember | None = None
-    for org_member in user.org_members:
-        if org_member.org_id == current_org_id:
-            current_org_member = org_member
-            break
-    if not current_org_member:
-        return None
-    if current_org_member.llm_api_key_for_byor:
-        return current_org_member.llm_api_key_for_byor.get_secret_value()
-    return None
+    try:
+        return decrypt_legacy_value(user_settings.llm_api_key_for_byor)
+    except Exception:
+        return user_settings.llm_api_key_for_byor
 
 
 async def store_byor_key_in_db(user_id: str, key: str) -> None:
     """Store the BYOR key in the database for a user."""
-    user = await UserStore.get_user_by_id(user_id)
-    if not user:
-        return None
+    async with a_session_maker() as session:
+        result = await session.execute(
+            select(UserSettings).filter(UserSettings.keycloak_user_id == user_id)
+        )
+        user_settings = result.scalars().first()
+        if not user_settings:
+            user_settings = UserSettings(keycloak_user_id=user_id)
+            session.add(user_settings)
 
-    current_org_id = user.current_org_id
-    current_org_member: OrgMember | None = None
-    for org_member in user.org_members:
-        if org_member.org_id == current_org_id:
-            current_org_member = org_member
-            break
-    if not current_org_member:
-        return None
-    current_org_member.llm_api_key_for_byor = key
-    await OrgMemberStore.update_org_member(current_org_member)
+        user_settings.llm_api_key_for_byor = encrypt_legacy_value(key)
+        await session.commit()
 
 
 async def generate_byor_key(user_id: str) -> str | None:

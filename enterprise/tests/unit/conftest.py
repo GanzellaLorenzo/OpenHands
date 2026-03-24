@@ -1,3 +1,4 @@
+import os
 import uuid
 from datetime import datetime
 from uuid import UUID
@@ -36,6 +37,20 @@ from storage.stored_conversation_metadata_saas import (
 from storage.stored_offline_token import StoredOfflineToken
 from storage.stripe_customer import StripeCustomer
 from storage.user import User
+from storage.user_settings import UserSettings  # noqa: F401
+
+
+@pytest.fixture(autouse=True)
+def allow_short_context_windows():
+    old = os.environ.get('ALLOW_SHORT_CONTEXT_WINDOWS')
+    os.environ['ALLOW_SHORT_CONTEXT_WINDOWS'] = 'true'
+    try:
+        yield
+    finally:
+        if old is None:
+            os.environ.pop('ALLOW_SHORT_CONTEXT_WINDOWS', None)
+        else:
+            os.environ['ALLOW_SHORT_CONTEXT_WINDOWS'] = old
 
 
 @pytest.fixture

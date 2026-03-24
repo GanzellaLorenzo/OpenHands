@@ -2224,10 +2224,12 @@ class TestOrgMemberServiceGetMe:
         member.user_id = current_user_id
         member.role_id = 1
         member.llm_api_key = SecretStr('sk-test-key-12345')
-        member.llm_api_key_for_byor = None
-        member.llm_model = 'gpt-4'
-        member.llm_base_url = 'https://api.example.com'
-        member.max_iterations = 50
+        member.agent_settings = {
+            'schema_version': 1,
+            'llm.model': 'gpt-4',
+            'llm.base_url': 'https://api.example.com',
+            'max_iterations': 50,
+        }
         member.status = 'active'
         return member
 
@@ -2261,10 +2263,19 @@ class TestOrgMemberServiceGetMe:
                 'server.services.org_member_service.UserStore.get_user_by_id',
                 new_callable=AsyncMock,
             ) as mock_get_user,
+            patch(
+                'server.services.org_member_service.a_session_maker'
+            ) as mock_session_maker,
         ):
             mock_get_member.return_value = mock_org_member
             mock_get_role.return_value = owner_role
             mock_get_user.return_value = mock_user
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.first.return_value = None
+            mock_session = AsyncMock()
+            mock_session.execute.return_value = mock_result
+            mock_session_maker.return_value.__aenter__.return_value = mock_session
+            mock_session_maker.return_value.__aexit__.return_value = None
 
             # Act
             result = await OrgMemberService.get_me(org_id, current_user_id)
@@ -2348,10 +2359,19 @@ class TestOrgMemberServiceGetMe:
                 'server.services.org_member_service.UserStore.get_user_by_id',
                 new_callable=AsyncMock,
             ) as mock_get_user,
+            patch(
+                'server.services.org_member_service.a_session_maker'
+            ) as mock_session_maker,
         ):
             mock_get_member.return_value = mock_org_member
             mock_get_role.return_value = owner_role
             mock_get_user.return_value = None
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.first.return_value = None
+            mock_session = AsyncMock()
+            mock_session.execute.return_value = mock_result
+            mock_session_maker.return_value.__aenter__.return_value = mock_session
+            mock_session_maker.return_value.__aexit__.return_value = None
 
             # Act
             result = await OrgMemberService.get_me(org_id, current_user_id)

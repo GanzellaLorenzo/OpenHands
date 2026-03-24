@@ -14,7 +14,6 @@ from server.logger import logger
 from sqlalchemy import select, update
 from sqlalchemy.orm import joinedload
 from storage.database import a_session_maker
-from storage.encrypt_utils import encrypt_value
 from storage.lite_llm_manager import LiteLlmManager, get_openhands_cloud_key_alias
 from storage.org import Org
 from storage.org_member import OrgMember
@@ -121,6 +120,7 @@ class SaasSettingsStore(SettingsStore):
         member_agent_settings = OrgMemberStore.get_agent_settings_from_org_member(
             org_member
         )
+        user_settings = await self._get_user_settings_by_keycloak_id_async(self.user_id)
 
         kwargs = {
             **{
@@ -140,9 +140,15 @@ class SaasSettingsStore(SettingsStore):
             },
         }
         kwargs['llm_api_key'] = org_member.llm_api_key
-        if org_member.llm_api_key_for_byor:
-            kwargs['llm_api_key_for_byor'] = org_member.llm_api_key_for_byor
-        kwargs['agent_settings'] = {**org_agent_settings, **member_agent_settings}
+        if user_settings and user_settings.llm_api_key_for_byor:
+            byor_kwargs = {'llm_api_key_for_byor': user_settings.llm_api_key_for_byor}
+            self._decrypt_kwargs(byor_kwargs)
+            kwargs['llm_api_key_for_byor'] = byor_kwargs['llm_api_key_for_byor']
+        effective_member_agent_settings = {
+            **org_agent_settings,
+            **member_agent_settings,
+        }
+        kwargs['agent_settings'] = effective_member_agent_settings
         if org.v1_enabled is None:
             kwargs['v1_enabled'] = True
         # Apply default if sandbox_grouping_strategy is None in the database
@@ -152,8 +158,10 @@ class SaasSettingsStore(SettingsStore):
         settings = Settings(**kwargs)
         if org_agent_settings != (org.agent_settings or {}):
             await self._persist_org_agent_settings_async(org_id, org_agent_settings)
-        if member_agent_settings != (org_member.agent_settings or {}):
-            await self._persist_agent_settings_async(org_id, member_agent_settings)
+        if effective_member_agent_settings != (org_member.agent_settings or {}):
+            await self._persist_agent_settings_async(
+                org_id, effective_member_agent_settings
+            )
         return settings
 
     async def store(self, item: Settings):
@@ -212,67 +220,28 @@ class SaasSettingsStore(SettingsStore):
 
             llm_model = item.get_agent_setting('llm.model')
             llm_base_url = item.get_agent_setting('llm.base_url')
-            max_iterations = item.get_agent_setting('max_iterations')
-            llm_api_key = item.get_secret_agent_setting('llm.api_key')
 
             # Check if we need to generate an LLM key.
             if llm_base_url == LITE_LLM_API_URL:
                 await self._ensure_api_key(
                     item, str(org_id), openhands_type=is_openhands_model(llm_model)
                 )
-                llm_api_key = item.get_secret_agent_setting('llm.api_key')
 
             normalized_agent_settings = item.normalized_agent_settings(
                 strip_secret_values=True
-            )
-            org_agent_settings = OrgStore.org_scoped_agent_settings(
-                normalized_agent_settings
             )
             member_agent_settings = normalized_agent_settings
 
             kwargs = item.model_dump(context={'expose_secrets': True})
             kwargs.pop('agent_settings', None)
-            for model in (user, org, org_member):
+            kwargs.pop('llm_api_key_for_byor', None)
+            for model in (user, org_member):
                 for key, value in kwargs.items():
                     if hasattr(model, key):
                         setattr(model, key, value)
 
-            org.agent_settings = org_agent_settings
             org_member.agent_settings = member_agent_settings
-
-            # Map explicitly provided SDK-managed settings onto Org defaults.
-            # These values now live in item.agent_settings, so inspect the
-            # dotted keys directly instead of relying on model_dump().
-            if 'llm.model' in item.agent_settings:
-                org.default_llm_model = llm_model
-            if 'llm.base_url' in item.agent_settings:
-                org.default_llm_base_url = llm_base_url
-            if 'max_iterations' in item.agent_settings:
-                org.default_max_iterations = max_iterations
-
-            # Propagate LLM settings to all org members
-            # This ensures all members see the same LLM configuration when an admin saves
-            # Note: Concurrent saves by multiple admins will result in last-write-wins.
-            # Consider adding optimistic locking if this becomes a problem.
-            member_update_values: dict = {}
-            if llm_model is not None:
-                member_update_values['llm_model'] = llm_model
-            if llm_base_url is not None:
-                member_update_values['llm_base_url'] = llm_base_url
-            if max_iterations is not None:
-                member_update_values['max_iterations'] = max_iterations
-            if llm_api_key is not None:
-                member_update_values['_llm_api_key'] = encrypt_value(
-                    llm_api_key.get_secret_value()
-                )
-
-            if member_update_values:
-                stmt = (
-                    update(OrgMember)
-                    .where(OrgMember.org_id == org_id)
-                    .values(**member_update_values)
-                )
-                await session.execute(stmt)
+            org_member.llm_api_key = item.get_secret_agent_setting('llm.api_key')
 
             await session.commit()
 

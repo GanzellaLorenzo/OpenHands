@@ -98,6 +98,38 @@ def upgrade() -> None:
         )
     )
 
+    op.execute(
+        sa.text(
+            """
+            UPDATE user_settings AS us
+            SET llm_api_key_for_byor = om._llm_api_key_for_byor
+            FROM "user" AS u
+            JOIN org_member AS om
+              ON om.user_id = u.id
+             AND om.org_id = u.current_org_id
+            WHERE us.keycloak_user_id = u.id::text
+              AND us.llm_api_key_for_byor IS NULL
+              AND om._llm_api_key_for_byor IS NOT NULL
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
+            INSERT INTO user_settings (keycloak_user_id, llm_api_key_for_byor, agent_settings)
+            SELECT u.id::text, om._llm_api_key_for_byor, '{}'::json
+            FROM "user" AS u
+            JOIN org_member AS om
+              ON om.user_id = u.id
+             AND om.org_id = u.current_org_id
+            LEFT JOIN user_settings AS us
+              ON us.keycloak_user_id = u.id::text
+            WHERE us.id IS NULL
+              AND om._llm_api_key_for_byor IS NOT NULL
+            """
+        )
+    )
+
     op.alter_column('user_settings', 'agent_settings', server_default=None)
     op.alter_column('org_member', 'agent_settings', server_default=None)
     op.alter_column('org', 'agent_settings', server_default=None)
@@ -109,6 +141,10 @@ def upgrade() -> None:
     op.drop_column('user_settings', 'llm_base_url')
     op.drop_column('user_settings', 'enable_default_condenser')
     op.drop_column('user_settings', 'condenser_max_size')
+    op.drop_column('org_member', 'max_iterations')
+    op.drop_column('org_member', 'llm_model')
+    op.drop_column('org_member', '_llm_api_key_for_byor')
+    op.drop_column('org_member', 'llm_base_url')
 
 
 def downgrade() -> None:
@@ -138,6 +174,14 @@ def downgrade() -> None:
     op.add_column(
         'user_settings', sa.Column('condenser_max_size', sa.Integer(), nullable=True)
     )
+    op.add_column('org_member', sa.Column('llm_base_url', sa.String(), nullable=True))
+    op.add_column(
+        'org_member', sa.Column('_llm_api_key_for_byor', sa.String(), nullable=True)
+    )
+    op.add_column('org_member', sa.Column('llm_model', sa.String(), nullable=True))
+    op.add_column(
+        'org_member', sa.Column('max_iterations', sa.Integer(), nullable=True)
+    )
 
     op.execute(
         sa.text(
@@ -162,6 +206,31 @@ def downgrade() -> None:
                 END,
                 condenser_max_size =
                     NULLIF(agent_settings ->> 'condenser.max_size', '')::integer
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
+            UPDATE org_member
+            SET
+                llm_model = agent_settings ->> 'llm.model',
+                llm_base_url = agent_settings ->> 'llm.base_url',
+                max_iterations = NULLIF(agent_settings ->> 'max_iterations', '')::integer
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
+            UPDATE org_member AS om
+            SET _llm_api_key_for_byor = us.llm_api_key_for_byor
+            FROM "user" AS u
+            JOIN user_settings AS us
+              ON us.keycloak_user_id = u.id::text
+            WHERE om.user_id = u.id
+              AND om.org_id = u.current_org_id
+              AND us.llm_api_key_for_byor IS NOT NULL
             """
         )
     )

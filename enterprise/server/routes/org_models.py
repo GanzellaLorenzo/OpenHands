@@ -358,17 +358,11 @@ class OrgLLMSettingsUpdate(BaseModel):
     def get_member_updates(self) -> OrgMemberLLMSettings | None:
         """Get updates that need to be propagated to org members.
 
-        Returns:
-            OrgMemberLLMSettings with mapped field values, or None if no member updates needed.
-            Maps: default_llm_model → llm_model, default_llm_base_url → llm_base_url,
-                  default_max_iterations → max_iterations, llm_api_key → llm_api_key
+        Only the org-managed shared LLM API key is propagated. Member agent
+        settings are snapshotted from org defaults on creation and then used as
+        the source of truth for runtime settings.
         """
-        member_settings = OrgMemberLLMSettings(
-            llm_model=self.default_llm_model,
-            llm_base_url=self.default_llm_base_url,
-            max_iterations=self.default_max_iterations,
-            llm_api_key=self.llm_api_key,
-        )
+        member_settings = OrgMemberLLMSettings(llm_api_key=self.llm_api_key)
         return member_settings if member_settings.has_updates() else None
 
 
@@ -412,11 +406,11 @@ class MeResponse(BaseModel):
     status: str | None = None
 
     @staticmethod
-    def _mask_key(secret: SecretStr | None) -> str:
+    def _mask_key(secret: str | SecretStr | None) -> str:
         """Mask an API key, showing only last 4 characters."""
         if secret is None:
             return ''
-        raw = secret.get_secret_value()
+        raw = secret.get_secret_value() if isinstance(secret, SecretStr) else secret
         if not raw:
             return ''
         if len(raw) <= 4:
@@ -424,27 +418,35 @@ class MeResponse(BaseModel):
         return '****' + raw[-4:]
 
     @classmethod
-    def from_org_member(cls, member: OrgMember, role: Role, email: str) -> 'MeResponse':
+    def from_org_member(
+        cls,
+        member: OrgMember,
+        role: Role,
+        email: str,
+        llm_api_key_for_byor: str | SecretStr | None = None,
+    ) -> 'MeResponse':
         """Create a MeResponse from an OrgMember, Role, and user email.
 
         Args:
             member: The OrgMember entity
             role: The Role entity (provides role name)
             email: The user's email address
+            llm_api_key_for_byor: Optional BYOR key from the user's settings record
 
         Returns:
             MeResponse with masked API keys
         """
+        agent_settings = dict(member.agent_settings or {})
         return cls(
             org_id=str(member.org_id),
             user_id=str(member.user_id),
             email=email,
             role=role.name,
             llm_api_key=cls._mask_key(member.llm_api_key),
-            max_iterations=member.max_iterations,
-            llm_model=member.llm_model,
-            llm_api_key_for_byor=cls._mask_key(member.llm_api_key_for_byor) or None,
-            llm_base_url=member.llm_base_url,
+            max_iterations=agent_settings.get('max_iterations'),
+            llm_model=agent_settings.get('llm.model'),
+            llm_api_key_for_byor=cls._mask_key(llm_api_key_for_byor) or None,
+            llm_base_url=agent_settings.get('llm.base_url'),
             status=member.status,
         )
 

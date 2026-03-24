@@ -32,20 +32,21 @@ def test_get_kwargs_from_user_settings_uses_agent_settings_as_source_of_truth():
     kwargs = OrgMemberStore.get_kwargs_from_user_settings(user_settings)
 
     assert kwargs['llm_api_key'] == 'legacy-secret'
-    assert kwargs['llm_model'] == 'anthropic/claude-sonnet-4-5-20250929'
-    assert kwargs['llm_base_url'] == 'https://api.example.com'
-    assert kwargs['max_iterations'] == 42
-    assert kwargs['agent_settings'] | {
-        'schema_version': 1,
-        'agent': 'CodeActAgent',
-        'verification.confirmation_mode': True,
-        'verification.security_analyzer': 'llm',
-        'condenser.enabled': False,
-        'condenser.max_size': 128,
-        'llm.model': 'anthropic/claude-sonnet-4-5-20250929',
-        'llm.base_url': 'https://api.example.com',
-        'max_iterations': 42,
-    } == kwargs['agent_settings']
+    assert (
+        kwargs['agent_settings']
+        | {
+            'schema_version': 1,
+            'agent': 'CodeActAgent',
+            'verification.confirmation_mode': True,
+            'verification.security_analyzer': 'llm',
+            'condenser.enabled': False,
+            'condenser.max_size': 128,
+            'llm.model': 'anthropic/claude-sonnet-4-5-20250929',
+            'llm.base_url': 'https://api.example.com',
+            'max_iterations': 42,
+        }
+        == kwargs['agent_settings']
+    )
 
 
 def test_get_agent_settings_from_org_member_prefers_canonical_json_over_legacy_columns():
@@ -343,9 +344,9 @@ async def test_add_user_to_org_with_llm_settings(async_session_maker):
 
     # Assert
     assert org_member is not None
-    assert org_member.llm_model == 'claude-sonnet-4'
-    assert org_member.llm_base_url == 'https://api.example.com'
-    assert org_member.max_iterations == 50
+    assert org_member.agent_settings['llm.model'] == 'claude-sonnet-4'
+    assert org_member.agent_settings['llm.base_url'] == 'https://api.example.com'
+    assert org_member.agent_settings['max_iterations'] == 50
 
 
 @pytest.mark.asyncio
@@ -1072,9 +1073,9 @@ async def test_update_all_members_llm_settings_async_with_non_encrypted_fields(
         )
         updated_member = result.scalars().first()
 
-        assert updated_member.llm_model == 'new-model'
-        assert updated_member.llm_base_url == 'https://new-url.com'
-        assert updated_member.max_iterations == 50
+        assert updated_member.agent_settings['llm.model'] == 'new-model'
+        assert updated_member.agent_settings['llm.base_url'] == 'https://new-url.com'
+        assert updated_member.agent_settings['max_iterations'] == 50
 
 
 @pytest.mark.asyncio
@@ -1132,7 +1133,7 @@ async def test_update_all_members_llm_settings_async_with_empty_settings(
         )
         member = result.scalars().first()
 
-        assert member.llm_model == 'original-model'
+        assert member.agent_settings['llm.model'] == 'original-model'
         # Original key should still be there (encrypted)
         assert member._llm_api_key is not None
 
@@ -1228,7 +1229,7 @@ def test_org_llm_settings_update_get_member_updates_includes_llm_api_key():
     # Assert
     assert member_updates is not None
     assert member_updates.llm_api_key == 'new-member-key'
-    assert member_updates.llm_model == 'claude-3'
+    assert member_updates.llm_model is None
 
 
 def test_org_llm_settings_update_get_member_updates_only_llm_api_key():

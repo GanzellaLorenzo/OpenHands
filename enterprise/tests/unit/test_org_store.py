@@ -524,8 +524,8 @@ async def test_persist_org_with_owner_with_multiple_fields(
             select(OrgMember).filter_by(org_id=org_id, user_id=user_id)
         )
         persisted_member = result_query.scalars().first()
-        assert persisted_member.max_iterations == 100
-        assert persisted_member.llm_model == 'gpt-4'
+        assert persisted_member.agent_settings['max_iterations'] == 100
+        assert persisted_member.agent_settings['llm.model'] == 'gpt-4'
 
 
 @pytest.mark.asyncio
@@ -1075,7 +1075,7 @@ async def test_update_org_llm_settings_async_with_llm_api_key():
         call_args = mock_member_update.call_args
         member_settings = call_args[0][2]  # Third positional arg is member_settings
         assert member_settings.llm_api_key == 'new-member-api-key'
-        assert member_settings.llm_model == 'new-model'
+        assert member_settings.llm_model is None
 
 
 @pytest.mark.asyncio

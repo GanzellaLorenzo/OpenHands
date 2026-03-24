@@ -6,11 +6,10 @@ from typing import Optional
 from uuid import UUID
 
 from server.routes.org_models import OrgMemberLLMSettings
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from storage.database import a_session_maker
-from storage.encrypt_utils import encrypt_value
 from storage.org_member import OrgMember
 from storage.user import User
 from storage.user_settings import UserSettings
@@ -31,8 +30,17 @@ class OrgMemberStore:
         llm_model: Optional[str] = None,
         llm_base_url: Optional[str] = None,
         max_iterations: Optional[int] = None,
+        agent_settings: Optional[dict] = None,
     ) -> OrgMember:
         """Add a user to an organization with a specific role."""
+        agent_settings = dict(agent_settings or {})
+        if llm_model is not None:
+            agent_settings['llm.model'] = llm_model
+        if llm_base_url is not None:
+            agent_settings['llm.base_url'] = llm_base_url
+        if max_iterations is not None:
+            agent_settings['max_iterations'] = max_iterations
+
         async with a_session_maker() as session:
             org_member = OrgMember(
                 org_id=org_id,
@@ -40,9 +48,7 @@ class OrgMemberStore:
                 role_id=role_id,
                 llm_api_key=llm_api_key,
                 status=status,
-                llm_model=llm_model,
-                llm_base_url=llm_base_url,
-                max_iterations=max_iterations,
+                agent_settings=agent_settings,
             )
             session.add(org_member)
             await session.commit()
@@ -150,39 +156,37 @@ class OrgMemberStore:
 
     @staticmethod
     def get_agent_settings_from_org_member(org_member: OrgMember) -> dict:
-        settings = Settings(agent_settings=dict(org_member.agent_settings or {}))
-        for key, value in {
-            'llm.model': org_member.llm_model,
-            'llm.base_url': org_member.llm_base_url,
-            'max_iterations': org_member.max_iterations,
-        }.items():
-            if settings.get_agent_setting(key) is None and value is not None:
-                settings.set_agent_setting(key, value)
-        return settings.normalized_agent_settings(strip_secret_values=True)
+        agent_settings = dict(org_member.agent_settings or {})
+        legacy_values = getattr(org_member, '__dict__', {})
+        for attr, key in (
+            ('llm_model', 'llm.model'),
+            ('llm_base_url', 'llm.base_url'),
+            ('max_iterations', 'max_iterations'),
+        ):
+            value = legacy_values.get(attr)
+            if agent_settings.get(key) is None and value is not None:
+                agent_settings[key] = value
+        if agent_settings and 'schema_version' not in agent_settings:
+            agent_settings['schema_version'] = 1
+        return agent_settings
 
     @staticmethod
     def get_kwargs_from_settings(settings: Settings):
-        agent_settings = settings.agent_settings
         return {
             'llm_api_key': settings.get_secret_agent_setting('llm.api_key'),
-            'llm_model': agent_settings.llm.model,
-            'llm_api_key_for_byor': settings.llm_api_key_for_byor,
-            'llm_base_url': agent_settings.llm.base_url,
-            'max_iterations': settings.get_agent_setting('max_iterations'),
-            'agent_settings': settings.normalized_agent_settings(strip_secret_values=True),
+            'agent_settings': settings.normalized_agent_settings(
+                strip_secret_values=True
+            ),
         }
 
     @staticmethod
     def get_kwargs_from_user_settings(user_settings: UserSettings):
-        settings = user_settings.to_settings()
-        agent_settings = settings.agent_settings
+        agent_settings = dict(user_settings.agent_settings or {})
+        if agent_settings and 'schema_version' not in agent_settings:
+            agent_settings['schema_version'] = 1
         return {
             'llm_api_key': user_settings.llm_api_key,
-            'llm_model': agent_settings.llm.model,
-            'llm_api_key_for_byor': user_settings.llm_api_key_for_byor,
-            'llm_base_url': agent_settings.llm.base_url,
-            'max_iterations': settings.get_agent_setting('max_iterations'),
-            'agent_settings': settings.normalized_agent_settings(strip_secret_values=True),
+            'agent_settings': agent_settings,
         }
 
     @staticmethod
@@ -270,14 +274,35 @@ class OrgMemberStore:
             org_id: Organization ID
             member_settings: Typed LLM settings to apply to all members
         """
-        # Build update values from non-None fields
         values = member_settings.model_dump(exclude_none=True)
+        if not values:
+            return
 
-        # Handle encrypted llm_api_key field - map to _llm_api_key column with encryption
-        if 'llm_api_key' in values:
-            raw_key = values.pop('llm_api_key')
-            values['_llm_api_key'] = encrypt_value(raw_key)
+        result = await session.execute(
+            select(OrgMember).where(OrgMember.org_id == org_id)
+        )
+        org_members = list(result.scalars().all())
 
-        if values:
-            stmt = update(OrgMember).where(OrgMember.org_id == org_id).values(**values)
-            await session.execute(stmt)
+        raw_key = values.pop('llm_api_key', None)
+        agent_settings_updates = {
+            'llm.model': values.pop('llm_model', None),
+            'llm.base_url': values.pop('llm_base_url', None),
+            'max_iterations': values.pop('max_iterations', None),
+        }
+
+        for org_member in org_members:
+            if raw_key is not None:
+                org_member.llm_api_key = raw_key
+
+            if any(value is not None for value in agent_settings_updates.values()):
+                agent_settings = OrgMemberStore.get_agent_settings_from_org_member(
+                    org_member
+                )
+                for key, value in agent_settings_updates.items():
+                    if value is None:
+                        continue
+                    agent_settings[key] = value
+                org_member.agent_settings = agent_settings
+
+            for key, value in values.items():
+                setattr(org_member, key, value)

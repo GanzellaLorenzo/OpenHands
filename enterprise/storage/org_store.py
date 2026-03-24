@@ -2,7 +2,7 @@
 Store class for managing organizations.
 """
 
-from typing import Any, Optional
+from typing import Optional
 from uuid import UUID
 
 from server.constants import (
@@ -24,64 +24,30 @@ from storage.user_settings import UserSettings
 from openhands.core.logger import openhands_logger as logger
 from openhands.storage.data_models.settings import Settings
 
-# Only these agent_settings keys are stored on org; user/member secrets remain elsewhere.
-_ORG_SCOPED_AGENT_SETTINGS_KEYS = {
-    'schema_version',
-    'agent',
-    'llm.model',
-    'llm.base_url',
-    'verification.confirmation_mode',
-    'verification.security_analyzer',
-    'condenser.enabled',
-    'condenser.max_size',
-    'max_iterations',
-    'mcp_config',
-}
-
 
 class OrgStore:
     """Store for managing organizations."""
 
     @staticmethod
-    def org_scoped_agent_settings(agent_settings: dict[str, Any]) -> dict[str, Any]:
-        return {
-            key: value
-            for key, value in agent_settings.items()
-            if key in _ORG_SCOPED_AGENT_SETTINGS_KEYS
-        }
-
-    @staticmethod
-    def get_agent_settings_from_org(org: Org) -> dict[str, Any]:
-        raw_agent_settings = getattr(org, 'agent_settings', {})
-        if not isinstance(raw_agent_settings, dict):
-            raw_agent_settings = {}
-
-        settings = Settings(agent_settings=dict(raw_agent_settings))
-        settings.set_agent_setting('agent', getattr(org, 'agent', None))
-        settings.set_agent_setting('llm.model', getattr(org, 'default_llm_model', None))
-        settings.set_agent_setting(
-            'llm.base_url', getattr(org, 'default_llm_base_url', None)
-        )
-        settings.set_agent_setting(
-            'verification.confirmation_mode', getattr(org, 'confirmation_mode', None)
-        )
-        settings.set_agent_setting(
-            'verification.security_analyzer', getattr(org, 'security_analyzer', None)
-        )
-        settings.set_agent_setting(
-            'condenser.enabled', getattr(org, 'enable_default_condenser', None)
-        )
-        settings.set_agent_setting(
-            'condenser.max_size', getattr(org, 'condenser_max_size', None)
-        )
-        settings.set_agent_setting(
-            'max_iterations', getattr(org, 'default_max_iterations', None)
-        )
-        if settings.get_agent_setting('mcp_config') is None:
-            settings.set_agent_setting('mcp_config', getattr(org, 'mcp_config', None))
-        return OrgStore.org_scoped_agent_settings(
-            settings.normalized_agent_settings(strip_secret_values=True)
-        )
+    def get_agent_settings_from_org(org: Org) -> dict[str, object]:
+        agent_settings = dict(getattr(org, 'agent_settings', {}) or {})
+        legacy_values = getattr(org, '__dict__', {})
+        for key, value in {
+            'agent': legacy_values.get('agent'),
+            'llm.model': legacy_values.get('default_llm_model'),
+            'llm.base_url': legacy_values.get('default_llm_base_url'),
+            'verification.confirmation_mode': legacy_values.get('confirmation_mode'),
+            'verification.security_analyzer': legacy_values.get('security_analyzer'),
+            'condenser.enabled': legacy_values.get('enable_default_condenser'),
+            'condenser.max_size': legacy_values.get('condenser_max_size'),
+            'max_iterations': legacy_values.get('default_max_iterations'),
+            'mcp_config': legacy_values.get('mcp_config'),
+        }.items():
+            if agent_settings.get(key) is None and value is not None:
+                agent_settings[key] = value
+        if agent_settings and 'schema_version' not in agent_settings:
+            agent_settings['schema_version'] = 1
+        return agent_settings
 
     @staticmethod
     def sync_agent_settings(org: Org) -> None:
@@ -292,9 +258,7 @@ class OrgStore:
             'sandbox_grouping_strategy': getattr(
                 settings, 'sandbox_grouping_strategy', None
             ),
-            'agent_settings': OrgStore.org_scoped_agent_settings(
-                normalized_agent_settings
-            ),
+            'agent_settings': normalized_agent_settings,
             'mcp_config': normalized_agent_settings.get('mcp_config'),
         }
 
@@ -319,9 +283,7 @@ class OrgStore:
             'sandbox_base_container_image': user_settings.sandbox_base_container_image,
             'sandbox_runtime_container_image': user_settings.sandbox_runtime_container_image,
             'org_version': user_settings.user_version,
-            'agent_settings': OrgStore.org_scoped_agent_settings(
-                normalized_agent_settings
-            ),
+            'agent_settings': normalized_agent_settings,
             'mcp_config': normalized_agent_settings.get('mcp_config'),
             'search_api_key': user_settings.search_api_key,
             'sandbox_api_key': user_settings.sandbox_api_key,

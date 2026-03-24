@@ -16,9 +16,13 @@ from server.routes.org_models import (
     OrgMemberUpdate,
     RoleNotFoundError,
 )
+from sqlalchemy import select
+from storage.database import a_session_maker
+from storage.encrypt_utils import decrypt_legacy_value
 from storage.lite_llm_manager import LiteLlmManager
 from storage.org_member_store import OrgMemberStore
 from storage.role_store import RoleStore
+from storage.user_settings import UserSettings
 from storage.user_store import UserStore
 
 from openhands.core.logger import openhands_logger as logger
@@ -55,11 +59,29 @@ class OrgMemberService:
         if role is None:
             raise RoleNotFoundError(org_member.role_id)
 
-        # Get user email
+        # Get user email and BYOR key from the user's settings record
         user = await UserStore.get_user_by_id(str(user_id))
         email = user.email if user and user.email else ''
 
-        return MeResponse.from_org_member(org_member, role, email)
+        llm_api_key_for_byor = None
+        async with a_session_maker() as session:
+            result = await session.execute(
+                select(UserSettings).filter(
+                    UserSettings.keycloak_user_id == str(user_id)
+                )
+            )
+            user_settings = result.scalars().first()
+        if user_settings and user_settings.llm_api_key_for_byor:
+            try:
+                llm_api_key_for_byor = decrypt_legacy_value(
+                    user_settings.llm_api_key_for_byor
+                )
+            except Exception:
+                llm_api_key_for_byor = user_settings.llm_api_key_for_byor
+
+        return MeResponse.from_org_member(
+            org_member, role, email, llm_api_key_for_byor=llm_api_key_for_byor
+        )
 
     @staticmethod
     async def get_org_members(

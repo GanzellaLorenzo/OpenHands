@@ -52,6 +52,7 @@ def test_get_kwargs_from_settings():
     settings = Settings(
         language='es',
         enable_sound_notifications=True,
+        llm_model='anthropic/claude-sonnet-4-5-20250929',
         llm_api_key=SecretStr('test-key'),
     )
 
@@ -83,6 +84,7 @@ async def test_create_default_settings_with_litellm(mock_litellm_api):
     # Mock LiteLlmManager.create_entries to return a Settings object
     mock_settings = Settings(
         language='en',
+        llm_model='anthropic/claude-sonnet-4-5-20250929',
         llm_api_key=SecretStr('test_api_key'),
         llm_base_url='http://test.url',
         agent='CodeActAgent',
@@ -737,10 +739,12 @@ def test_create_user_settings_from_entities():
     # Create mock entities
     org_member = MagicMock()
     org_member.llm_api_key = SecretStr('test-api-key')
-    org_member.llm_api_key_for_byor = None
-    org_member.llm_model = 'claude-3-5-sonnet'
-    org_member.llm_base_url = 'https://api.example.com'
-    org_member.max_iterations = 50
+    org_member.agent_settings = {
+        'schema_version': 1,
+        'llm.model': 'claude-3-5-sonnet',
+        'llm.base_url': 'https://api.example.com',
+        'max_iterations': 50,
+    }
 
     user = MagicMock()
     user.accepted_tos = None
@@ -801,10 +805,7 @@ def test_create_user_settings_from_entities_with_org_fallback():
     # Create mock entities with None in OrgMember
     org_member = MagicMock()
     org_member.llm_api_key = None
-    org_member.llm_api_key_for_byor = None
-    org_member.llm_model = None  # Should fall back to org.default_llm_model
-    org_member.llm_base_url = None  # Should fall back to org.default_llm_base_url
-    org_member.max_iterations = None  # Should fall back to org.default_max_iterations
+    org_member.agent_settings = {}
 
     user = MagicMock()
     user.accepted_tos = None

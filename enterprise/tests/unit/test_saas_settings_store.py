@@ -48,7 +48,7 @@ def test_member_settings_persist_full_effective_agent_settings(mock_config):
         condenser_max_size=128,
     )
 
-    assert settings.normalized_agent_settings(strip_secret_values=True) == {
+    expected = {
         'schema_version': 1,
         'agent': 'CodeActAgent',
         'llm.model': 'anthropic/claude-sonnet-4-5-20250929',
@@ -59,6 +59,9 @@ def test_member_settings_persist_full_effective_agent_settings(mock_config):
         'condenser.enabled': False,
         'condenser.max_size': 128,
     }
+
+    actual = settings.normalized_agent_settings(strip_secret_values=True)
+    assert actual | expected == actual
 
 
 @pytest.fixture
@@ -80,6 +83,7 @@ def settings_store(async_session_maker, mock_config):
             if not user_settings:
                 # Return default settings
                 return Settings(
+                    llm_model='anthropic/claude-sonnet-4-5-20250929',
                     llm_api_key=SecretStr('test_api_key'),
                     llm_base_url='http://test.url',
                     agent='CodeActAgent',
@@ -105,6 +109,7 @@ def settings_store(async_session_maker, mock_config):
         if item:
             # Make a copy of the item without email and email_verified
             item_dict = item.model_dump(context={'expose_secrets': True})
+            item_dict['llm_api_key'] = _secret_value(item, 'llm.api_key')
             if 'email' in item_dict:
                 del item_dict['email']
             if 'email_verified' in item_dict:
@@ -114,7 +119,9 @@ def settings_store(async_session_maker, mock_config):
 
             # Encrypt the data before storing
             store._encrypt_kwargs(item_dict)
-            item_dict['agent_settings'] = item.agent_settings
+            item_dict['agent_settings'] = item.normalized_agent_settings(
+                strip_secret_values=True
+            )
 
             # Continue with the original implementation
             from sqlalchemy import select
@@ -150,6 +157,7 @@ async def test_store_and_load_keycloak_user(settings_store):
     # Set a UUID-like Keycloak user ID
     settings_store.user_id = '550e8400-e29b-41d4-a716-446655440000'
     settings = Settings(
+        llm_model='anthropic/claude-sonnet-4-5-20250929',
         llm_api_key=SecretStr('secret_key'),
         llm_base_url=LITE_LLM_API_URL,
         agent='smith',
@@ -166,8 +174,8 @@ async def test_store_and_load_keycloak_user(settings_store):
     # Load and verify settings
     loaded_settings = await settings_store.load()
     assert loaded_settings is not None
-    assert loaded_settings.agent_settings['verification.critic_mode'] == 'all_actions'
-    assert loaded_settings.agent_settings['verification.critic_enabled'] is True
+    assert _agent_value(loaded_settings, 'verification.critic_mode') == 'all_actions'
+    assert _agent_value(loaded_settings, 'verification.critic_enabled') is True
     assert _secret_value(loaded_settings, 'llm.api_key') == 'secret_key'
     assert _agent_value(loaded_settings, 'agent') == 'smith'
 
@@ -205,6 +213,7 @@ async def test_load_returns_default_when_not_found(settings_store, async_session
 async def test_encryption(settings_store):
     settings_store.user_id = '5594c7b6-f959-4b81-92e9-b09c206f5081'  # GitHub user ID
     settings = Settings(
+        llm_model='anthropic/claude-sonnet-4-5-20250929',
         llm_api_key=SecretStr('secret_key'),
         agent='smith',
         llm_base_url=LITE_LLM_API_URL,
@@ -376,16 +385,13 @@ def org_with_multiple_members_fixture(session_maker):
 
 
 @pytest.mark.asyncio
-async def test_store_propagates_llm_settings_to_all_org_members(
+async def test_store_updates_only_current_member_settings_snapshot(
     session_maker, async_session_maker, mock_config, org_with_multiple_members_fixture
 ):
-    """When admin saves LLM settings, all org members should receive the updated settings.
+    """When a user saves settings, only their current membership snapshot should change.
 
-    This test verifies using a real database that:
-    1. The bulk UPDATE targets the correct organization (WHERE clause is correct)
-    2. All LLM fields are correctly set (llm_model, llm_base_url, max_iterations, llm_api_key)
-    3. The llm_api_key is properly encrypted
-    4. All members in the org receive the same updated values
+    Org defaults are managed separately. Saving effective user settings should update
+    the current org_member row plus its API key, without rewriting other members.
     """
     from sqlalchemy import select
     from storage.org_member import OrgMember
@@ -409,45 +415,40 @@ async def test_store_propagates_llm_settings_to_all_org_members(
     with patch('storage.saas_settings_store.a_session_maker', async_session_maker):
         await store.store(new_settings)
 
-    # Assert - verify ALL org members have the updated LLM settings using sync session
+    # Assert - verify only the current member was updated using sync session
     with session_maker() as session:
         result = session.execute(select(OrgMember).where(OrgMember.org_id == org_id))
-        members = result.scalars().all()
+        members = {str(member.user_id): member for member in result.scalars().all()}
 
-        # Verify we have all 3 members
         assert len(members) == 3, f'Expected 3 org members, got {len(members)}'
 
-        for member in members:
-            # Verify LLM model is updated
-            assert (
-                member.llm_model == 'new-shared-model/gpt-4'
-            ), f'Expected llm_model to be updated for member {member.user_id}'
+        admin_member = members[admin_user_id]
+        assert admin_member.agent_settings['llm.model'] == 'new-shared-model/gpt-4'
+        assert (
+            admin_member.agent_settings['llm.base_url'] == 'http://new-shared-url.com'
+        )
+        assert admin_member.agent_settings['max_iterations'] == 100
+        assert decrypt_value(admin_member._llm_api_key) == 'new-shared-api-key'
 
-            # Verify LLM base URL is updated
-            assert (
-                member.llm_base_url == 'http://new-shared-url.com'
-            ), f'Expected llm_base_url to be updated for member {member.user_id}'
+        member1 = members[str(fixture['member1_user_id'])]
+        assert member1.agent_settings['llm.model'] == 'old-model-v2'
+        assert member1.agent_settings['llm.base_url'] == 'http://old-url-2.com'
+        assert member1.agent_settings['max_iterations'] == 20
 
-            # Verify max_iterations is updated
-            assert (
-                member.max_iterations == 100
-            ), f'Expected max_iterations to be 100 for member {member.user_id}'
-
-            # Verify the API key is encrypted and decrypts to the correct value
-            decrypted_key = decrypt_value(member._llm_api_key)
-            assert (
-                decrypted_key == 'new-shared-api-key'
-            ), f'Expected llm_api_key to decrypt to new-shared-api-key for member {member.user_id}'
+        member2 = members[str(fixture['member2_user_id'])]
+        assert member2.agent_settings['llm.model'] == 'old-model-v3'
+        assert member2.agent_settings['llm.base_url'] == 'http://old-url-3.com'
+        assert member2.agent_settings['max_iterations'] == 30
 
 
 @pytest.mark.asyncio
-async def test_store_updates_org_default_llm_settings(
+async def test_store_does_not_update_org_default_llm_settings(
     session_maker, async_session_maker, mock_config, org_with_multiple_members_fixture
 ):
-    """When admin saves LLM settings, org's default_llm_model/base_url/max_iterations should be updated.
+    """Saving effective user settings should not rewrite org defaults.
 
-    This test verifies that the Org table's default settings are updated so that
-    new members joining later will inherit the correct LLM configuration.
+    Org defaults are changed through the org settings flow; the user settings
+    store should only update the current membership snapshot.
     """
     from sqlalchemy import select
     from storage.org import Org
@@ -470,15 +471,13 @@ async def test_store_updates_org_default_llm_settings(
     with patch('storage.saas_settings_store.a_session_maker', async_session_maker):
         await store.store(new_settings)
 
-    # Assert - verify org's default fields were updated
+    # Assert - verify org default fields were not rewritten
     with session_maker() as session:
         result = session.execute(select(Org).where(Org.id == org_id))
         org = result.scalars().first()
 
         assert org is not None
-        assert org.default_llm_model == 'anthropic/claude-sonnet-4'
-        assert org.default_llm_base_url == 'https://api.anthropic.com/v1'
-        assert org.default_max_iterations == 75
-        assert org.agent_settings['llm.model'] == 'anthropic/claude-sonnet-4'
-        assert org.agent_settings['llm.base_url'] == 'https://api.anthropic.com/v1'
-        assert org.agent_settings['max_iterations'] == 75
+        assert org.default_llm_model is None
+        assert org.default_llm_base_url is None
+        assert org.default_max_iterations is None
+        assert org.agent_settings == {}

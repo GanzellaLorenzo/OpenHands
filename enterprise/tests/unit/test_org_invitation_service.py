@@ -10,6 +10,7 @@ from server.routes.org_invitation_models import (
 )
 from server.services.org_invitation_service import OrgInvitationService
 from storage.org_invitation import OrgInvitation
+from storage.org_store import OrgStore
 
 
 class TestAcceptInvitationEmailValidation:
@@ -340,14 +341,14 @@ class TestAcceptInvitationEmailValidation:
             # Act
             await OrgInvitationService.accept_invitation(token, user_id)
 
-            # Assert - verify add_user_to_org inherits the org defaults implicitly
-            # instead of duplicating them on the new membership row.
+            # Assert - verify add_user_to_org snapshots the org defaults onto
+            # the new membership row's canonical agent_settings blob.
             mock_add_user.assert_called_once()
             call_kwargs = mock_add_user.call_args.kwargs
             assert call_kwargs['llm_api_key'] == 'test-key'
-            assert 'llm_model' not in call_kwargs
-            assert 'llm_base_url' not in call_kwargs
-            assert 'max_iterations' not in call_kwargs
+            assert call_kwargs[
+                'agent_settings'
+            ] == OrgStore.get_agent_settings_from_org(mock_org)
 
 
 class TestCreateInvitationsBatch:

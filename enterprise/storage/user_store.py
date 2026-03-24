@@ -278,10 +278,9 @@ class UserStore:
                 decrypted_user_settings
             )
             if not custom_settings:
-                org_member_kwargs['agent_settings'] = OrgStore.get_agent_settings_from_org(org)
-                org_member_kwargs['llm_model'] = org.default_llm_model
-                org_member_kwargs['llm_base_url'] = org.default_llm_base_url
-                org_member_kwargs['max_iterations'] = org.default_max_iterations
+                org_member_kwargs['agent_settings'] = (
+                    OrgStore.get_agent_settings_from_org(org)
+                )
 
             org_member = OrgMember(
                 org_id=org.id,
@@ -466,13 +465,6 @@ class UserStore:
                 if org_member.llm_api_key and org_member.llm_api_key.get_secret_value():
                     user_settings.llm_api_key = encrypt_legacy_value(
                         org_member.llm_api_key.get_secret_value()
-                    )
-                if (
-                    org_member.llm_api_key_for_byor
-                    and org_member.llm_api_key_for_byor.get_secret_value()
-                ):
-                    user_settings.llm_api_key_for_byor = encrypt_legacy_value(
-                        org_member.llm_api_key_for_byor.get_secret_value()
                     )
                 logger.info(
                     'user_store:downgrade_user:updated_user_settings_from_org_member',
@@ -957,18 +949,13 @@ class UserStore:
         member_agent_settings = OrgMemberStore.get_agent_settings_from_org_member(
             org_member
         )
-        agent_settings = {
-            **OrgStore.get_agent_settings_from_org(org),
-            **member_agent_settings,
-        }
+        org_agent_settings = OrgStore.get_agent_settings_from_org(org)
+        agent_settings = {**org_agent_settings, **member_agent_settings}
 
         return UserSettings(
             keycloak_user_id=user_id,
             llm_api_key=org_member.llm_api_key.get_secret_value()
             if org_member.llm_api_key
-            else None,
-            llm_api_key_for_byor=org_member.llm_api_key_for_byor.get_secret_value()
-            if org_member.llm_api_key_for_byor
             else None,
             accepted_tos=user.accepted_tos,
             enable_sound_notifications=user.enable_sound_notifications,
