@@ -692,8 +692,9 @@ class OpenHandsCloudWorkspace(RemoteWorkspace):
             payload["error"] = str(exc_val)
 
         try:
+            headers = {"Authorization": f"Bearer {self.cloud_api_key}"}
             with httpx.Client(timeout=10.0) as cb_client:
-                resp = cb_client.post(callback_url, json=payload)
+                resp = cb_client.post(callback_url, json=payload, headers=headers)
                 logger.info(f"Completion callback sent ({status}): {resp.status_code}")
         except Exception as e:
             logger.warning(f"Completion callback failed: {e}")
