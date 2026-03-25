@@ -254,9 +254,7 @@ class TestMarketplaceRegistration:
 
     def test_source_validation_ssh_url(self):
         """Test valid SSH git URL source."""
-        reg = MarketplaceRegistration(
-            name='test', source='git@github.com:owner/repo'
-        )
+        reg = MarketplaceRegistration(name='test', source='git@github.com:owner/repo')
         assert reg.source == 'git@github.com:owner/repo'
 
     def test_source_validation_relative_path(self):
