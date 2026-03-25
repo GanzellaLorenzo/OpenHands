@@ -43,3 +43,4 @@ class UserSettings(Base):  # type: ignore
     already_migrated = Column(
         Boolean, nullable=True, default=False
     )  # False = not migrated, True = migrated
+    registered_marketplaces = Column(JSON, nullable=True)
