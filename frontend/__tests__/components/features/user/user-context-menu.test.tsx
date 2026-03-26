@@ -181,7 +181,7 @@ describe("UserContextMenu", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("should render navigation items from SAAS_NAV_ITEMS (except organization-members/org)", async () => {
+  it("should render navigation items from SAAS_NAV_ITEMS for a personal workspace member", async () => {
     vi.spyOn(OptionService, "getConfig").mockResolvedValue(
       createMockWebClientConfig({
         app_mode: "saas",
@@ -197,10 +197,19 @@ describe("UserContextMenu", () => {
         },
       }),
     );
+    vi.spyOn(organizationService, "getOrganizations").mockResolvedValue({
+      items: [MOCK_PERSONAL_ORG],
+      currentOrgId: MOCK_PERSONAL_ORG.id,
+    });
+    useSelectedOrganizationStore.setState({
+      organizationId: MOCK_PERSONAL_ORG.id,
+    });
+    vi.spyOn(organizationService, "getMe").mockResolvedValue(
+      createMockUser({ role: "member", org_id: MOCK_PERSONAL_ORG.id }),
+    );
 
     renderUserContextMenu({ type: "member", onClose: vi.fn, onOpenInviteModal: vi.fn });
 
-    // Wait for config to load and verify that navigation items are rendered (except organization-members/org which are filtered out)
     const expectedItems = SAAS_NAV_ITEMS.filter(
       (item) =>
         item.to !== "/settings/org-members" &&
@@ -215,7 +224,7 @@ describe("UserContextMenu", () => {
     });
   });
 
-  it("should render navigation items from SAAS_NAV_ITEMS when user role is admin (except organization-members/org)", async () => {
+  it("should render navigation items from SAAS_NAV_ITEMS for a personal workspace admin", async () => {
     vi.spyOn(OptionService, "getConfig").mockResolvedValue(
       createMockWebClientConfig({
         app_mode: "saas",
@@ -231,15 +240,21 @@ describe("UserContextMenu", () => {
         },
       }),
     );
-
-    seedActiveUser({ role: "admin" });
+    vi.spyOn(organizationService, "getOrganizations").mockResolvedValue({
+      items: [MOCK_PERSONAL_ORG],
+      currentOrgId: MOCK_PERSONAL_ORG.id,
+    });
+    useSelectedOrganizationStore.setState({
+      organizationId: MOCK_PERSONAL_ORG.id,
+    });
+    vi.spyOn(organizationService, "getMe").mockResolvedValue(
+      createMockUser({ role: "admin", org_id: MOCK_PERSONAL_ORG.id }),
+    );
 
     renderUserContextMenu({ type: "admin", onClose: vi.fn, onOpenInviteModal: vi.fn });
 
-    // Wait for config to load and verify that navigation items are rendered (except organization-members/org which are filtered out)
     const expectedItems = SAAS_NAV_ITEMS.filter(
-      (item) =>
-        item.to !== "/settings/org-members" && item.to !== "/settings/org",
+      (item) => item.to !== "/settings/org-members" && item.to !== "/settings/org",
     );
 
     await waitFor(() => {

@@ -8,6 +8,7 @@ import {
   SettingsNavRenderedItem,
 } from "#/hooks/use-settings-nav-items";
 import { WebClientFeatureFlags } from "#/api/option-service/option.types";
+import { Organization } from "#/types/org";
 
 // Helper to find an item by path in rendered items
 const findItemByPath = (
@@ -25,7 +26,7 @@ const mockOrgTypeAndAccess = vi.hoisted(() => ({
   isPersonalOrg: false,
   isTeamOrg: false,
   organizationId: null as string | null,
-  selectedOrg: null,
+  selectedOrg: null as Pick<Organization, "id" | "is_personal"> | null,
   canViewOrgRoutes: false,
 }));
 
