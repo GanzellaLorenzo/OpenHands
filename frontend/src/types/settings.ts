@@ -101,18 +101,35 @@ export type SettingsSchema = {
   sections: SettingsSectionSchema[];
 };
 
+export type SkillInfo = {
+  name: string;
+  type: string;
+  source: string;
+  triggers?: string[];
+};
+
 export type Settings = {
+  llm_model: string;
+  llm_base_url: string;
+  agent: string;
   language: string;
+  llm_api_key: string | null;
   llm_api_key_set: boolean;
   search_api_key_set: boolean;
+  confirmation_mode: boolean;
+  security_analyzer: string | null;
   remote_runtime_resource_factor: number | null;
   provider_tokens_set: Partial<Record<Provider, string | null>>;
+  enable_default_condenser: boolean;
+  condenser_max_size: number | null;
   enable_sound_notifications: boolean;
   enable_proactive_conversation_starters: boolean;
   enable_solvability_analysis: boolean;
   user_consents_to_analytics: boolean | null;
   search_api_key?: string;
   is_new_user?: boolean;
+  mcp_config?: MCPConfig;
+  disabled_skills?: string[];
   max_budget_per_task: number | null;
   email?: string;
   email_verified?: boolean;

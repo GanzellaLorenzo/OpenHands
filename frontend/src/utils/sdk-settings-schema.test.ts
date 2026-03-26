@@ -8,26 +8,11 @@ import {
   inferInitialView,
   SPECIALLY_RENDERED_KEYS,
 } from "./sdk-settings-schema";
+import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings } from "#/types/settings";
 
 const BASE_SETTINGS: Settings = {
-  language: "en",
-  llm_api_key_set: false,
-  search_api_key_set: false,
-  remote_runtime_resource_factor: 1,
-  provider_tokens_set: {},
-  enable_sound_notifications: false,
-  enable_proactive_conversation_starters: false,
-  enable_solvability_analysis: false,
-  user_consents_to_analytics: false,
-  search_api_key: "",
-  is_new_user: true,
-  max_budget_per_task: null,
-  email: "",
-  email_verified: true,
-  git_user_name: "openhands",
-  git_user_email: "openhands@all-hands.dev",
-  v1_enabled: false,
+  ...DEFAULT_SETTINGS,
   agent_settings_schema: {
     model_name: "AgentSettings",
     sections: [

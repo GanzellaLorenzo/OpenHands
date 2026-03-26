@@ -210,9 +210,10 @@ class SaasSettingsStore(SettingsStore):
 
             llm_model = item.get_agent_setting('llm.model')
             llm_base_url = item.get_agent_setting('llm.base_url')
+            uses_managed_llm_key = not llm_base_url or llm_base_url == LITE_LLM_API_URL
 
             # Check if we need to generate an LLM key.
-            if not llm_base_url or llm_base_url == LITE_LLM_API_URL:
+            if uses_managed_llm_key:
                 await self._ensure_api_key(
                     item, str(org_id), openhands_type=is_openhands_model(llm_model)
                 )
@@ -220,17 +221,35 @@ class SaasSettingsStore(SettingsStore):
             normalized_agent_settings = item.normalized_agent_settings(
                 strip_secret_values=True
             )
-            member_agent_settings = normalized_agent_settings
+            shared_agent_settings = {
+                key: value
+                for key, value in normalized_agent_settings.items()
+                if key != 'llm.api_key'
+            }
+            current_member_llm_api_key = item.get_secret_agent_setting('llm.api_key')
+            shared_llm_api_key = (
+                current_member_llm_api_key.get_secret_value()
+                if current_member_llm_api_key and not uses_managed_llm_key
+                else None
+            )
 
             kwargs = item.model_dump(context={'expose_secrets': True})
             kwargs.pop('agent_settings', None)
-            for model in (user, org_member):
-                for key, value in kwargs.items():
-                    if hasattr(model, key):
-                        setattr(model, key, value)
+            for key, value in kwargs.items():
+                if hasattr(user, key):
+                    setattr(user, key, value)
 
-            org_member.agent_settings = member_agent_settings
-            org_member.llm_api_key = item.get_secret_agent_setting('llm.api_key')
+            org.agent_settings = shared_agent_settings
+
+            result = await session.execute(select(OrgMember).filter(OrgMember.org_id == org_id))
+            org_members = list(result.scalars().all())
+            for member in org_members:
+                member.agent_settings = dict(shared_agent_settings)
+                if shared_llm_api_key is not None:
+                    member.llm_api_key = shared_llm_api_key
+
+            if current_member_llm_api_key is not None:
+                org_member.llm_api_key = current_member_llm_api_key
 
             await session.commit()
 

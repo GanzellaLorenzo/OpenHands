@@ -405,96 +405,107 @@ def org_with_multiple_members_fixture(session_maker):
 
 
 @pytest.mark.asyncio
-async def test_store_updates_only_current_member_settings_snapshot(
+async def test_store_updates_org_defaults_and_all_members_for_shared_keys(
     session_maker, async_session_maker, mock_config, org_with_multiple_members_fixture
 ):
-    """When a user saves settings, only their current membership snapshot should change.
-
-    Org defaults are managed separately. Saving effective user settings should update
-    the current org_member row plus its API key, without rewriting other members.
-    """
+    """External provider keys should still sync as an org-wide shared snapshot."""
     from sqlalchemy import select
+    from storage.org import Org
     from storage.org_member import OrgMember
 
-    # Arrange
+    fixture = org_with_multiple_members_fixture
+    org_id = fixture['org_id']
+    decrypt_value = fixture['decrypt_value']
+
+    store = SaasSettingsStore(str(fixture['admin_user_id']), mock_config)
+    new_settings = DataSettings(
+        llm_model='anthropic/claude-sonnet-4',
+        llm_base_url='https://api.anthropic.com/v1',
+        max_iterations=100,
+        llm_api_key=SecretStr('shared-external-api-key'),
+    )
+
+    with patch('storage.saas_settings_store.a_session_maker', async_session_maker):
+        await store.store(new_settings)
+
+    with session_maker() as session:
+        org = session.execute(select(Org).where(Org.id == org_id)).scalars().first()
+        assert org is not None
+        assert org.agent_settings['llm.model'] == 'anthropic/claude-sonnet-4'
+        assert org.agent_settings['llm.base_url'] == 'https://api.anthropic.com/v1'
+        assert org.agent_settings['max_iterations'] == 100
+
+        members = {
+            str(member.user_id): member
+            for member in session.execute(
+                select(OrgMember).where(OrgMember.org_id == org_id)
+            ).scalars().all()
+        }
+        assert len(members) == 3
+
+        for member in members.values():
+            assert member.agent_settings['llm.model'] == 'anthropic/claude-sonnet-4'
+            assert member.agent_settings['llm.base_url'] == 'https://api.anthropic.com/v1'
+            assert member.agent_settings['max_iterations'] == 100
+            assert decrypt_value(member._llm_api_key) == 'shared-external-api-key'
+
+
+@pytest.mark.asyncio
+async def test_store_keeps_openhands_managed_keys_member_specific(
+    session_maker, async_session_maker, mock_config, org_with_multiple_members_fixture
+):
+    """Managed OpenHands keys should not be copied from one member to everyone else."""
+    from sqlalchemy import select
+    from storage.org import Org
+    from storage.org_member import OrgMember
+
     fixture = org_with_multiple_members_fixture
     org_id = fixture['org_id']
     admin_user_id = str(fixture['admin_user_id'])
     decrypt_value = fixture['decrypt_value']
 
     store = SaasSettingsStore(admin_user_id, mock_config)
-
     new_settings = DataSettings(
-        llm_model='new-shared-model/gpt-4',
-        llm_base_url='http://new-shared-url.com',
-        max_iterations=100,
-        llm_api_key=SecretStr('new-shared-api-key'),
+        llm_model='openhands/claude-opus-4-5-20251101',
+        llm_base_url=LITE_LLM_API_URL,
+        max_iterations=75,
+        llm_api_key=SecretStr('admin-managed-api-key'),
     )
 
-    # Act - call store() with async session
-    with patch('storage.saas_settings_store.a_session_maker', async_session_maker):
+    with (
+        patch('storage.saas_settings_store.a_session_maker', async_session_maker),
+        patch(
+            'storage.saas_settings_store.LiteLlmManager.verify_existing_key',
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
         await store.store(new_settings)
 
-    # Assert - verify only the current member was updated using sync session
     with session_maker() as session:
-        result = session.execute(select(OrgMember).where(OrgMember.org_id == org_id))
-        members = {str(member.user_id): member for member in result.scalars().all()}
+        org = session.execute(select(Org).where(Org.id == org_id)).scalars().first()
+        assert org is not None
+        assert org.agent_settings['llm.model'] == 'openhands/claude-opus-4-5-20251101'
+        assert org.agent_settings['llm.base_url'] == LITE_LLM_API_URL
+        assert org.agent_settings['max_iterations'] == 75
 
-        assert len(members) == 3, f'Expected 3 org members, got {len(members)}'
+        members = {
+            str(member.user_id): member
+            for member in session.execute(
+                select(OrgMember).where(OrgMember.org_id == org_id)
+            ).scalars().all()
+        }
+        assert len(members) == 3
 
         admin_member = members[admin_user_id]
-        assert admin_member.agent_settings['llm.model'] == 'new-shared-model/gpt-4'
-        assert (
-            admin_member.agent_settings['llm.base_url'] == 'http://new-shared-url.com'
-        )
-        assert admin_member.agent_settings['max_iterations'] == 100
-        assert decrypt_value(admin_member._llm_api_key) == 'new-shared-api-key'
+        assert decrypt_value(admin_member._llm_api_key) == 'admin-managed-api-key'
 
         member1 = members[str(fixture['member1_user_id'])]
-        assert member1.agent_settings['llm.model'] == 'old-model-v2'
-        assert member1.agent_settings['llm.base_url'] == 'http://old-url-2.com'
-        assert member1.agent_settings['max_iterations'] == 20
-
         member2 = members[str(fixture['member2_user_id'])]
-        assert member2.agent_settings['llm.model'] == 'old-model-v3'
-        assert member2.agent_settings['llm.base_url'] == 'http://old-url-3.com'
-        assert member2.agent_settings['max_iterations'] == 30
+        assert decrypt_value(member1._llm_api_key) == 'member1-initial-key'
+        assert decrypt_value(member2._llm_api_key) == 'member2-initial-key'
 
-
-@pytest.mark.asyncio
-async def test_store_does_not_update_org_default_llm_settings(
-    session_maker, async_session_maker, mock_config, org_with_multiple_members_fixture
-):
-    """Saving effective user settings should not rewrite org defaults.
-
-    Org defaults are changed through the org settings flow; the user settings
-    store should only update the current membership snapshot.
-    """
-    from sqlalchemy import select
-    from storage.org import Org
-
-    # Arrange
-    fixture = org_with_multiple_members_fixture
-    org_id = fixture['org_id']
-    admin_user_id = str(fixture['admin_user_id'])
-
-    store = SaasSettingsStore(admin_user_id, mock_config)
-
-    new_settings = DataSettings(
-        llm_model='anthropic/claude-sonnet-4',
-        llm_base_url='https://api.anthropic.com/v1',
-        max_iterations=75,
-        llm_api_key=SecretStr('test-api-key'),
-    )
-
-    # Act
-    with patch('storage.saas_settings_store.a_session_maker', async_session_maker):
-        await store.store(new_settings)
-
-    # Assert - verify org default fields were not rewritten
-    with session_maker() as session:
-        result = session.execute(select(Org).where(Org.id == org_id))
-        org = result.scalars().first()
-
-        assert org is not None
-        assert org.agent_settings == {}
+        for member in members.values():
+            assert member.agent_settings['llm.model'] == 'openhands/claude-opus-4-5-20251101'
+            assert member.agent_settings['llm.base_url'] == LITE_LLM_API_URL
+            assert member.agent_settings['max_iterations'] == 75

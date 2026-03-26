@@ -1,22 +1,89 @@
 import { useQuery } from "@tanstack/react-query";
-import SettingsService from "#/api/settings-service/settings-service.api";
-import { DEFAULT_SETTINGS } from "#/services/settings";
-import { useIsOnIntermediatePage } from "#/hooks/use-is-on-intermediate-page";
-import { Settings } from "#/types/settings";
-import { useIsAuthed } from "./use-is-authed";
 import { useSelectedOrganizationId } from "#/context/use-selected-organization";
+import { useIsOnIntermediatePage } from "#/hooks/use-is-on-intermediate-page";
+import { DEFAULT_SETTINGS } from "#/services/settings";
+import { Settings, SettingsValue } from "#/types/settings";
+import SettingsService from "#/api/settings-service/settings-service.api";
+import { useIsAuthed } from "./use-is-authed";
 import { useConfig } from "./use-config";
+
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === "string" && value.length > 0;
+
+const pickFirstString = (...values: unknown[]): string | undefined =>
+  values.find(isNonEmptyString);
+
+const pickFirstBoolean = (...values: unknown[]): boolean | undefined =>
+  values.find((value): value is boolean => typeof value === "boolean");
+
+const pickFirstNumber = (...values: unknown[]): number | undefined =>
+  values.find((value): value is number => typeof value === "number");
+
+const pickNullableString = (
+  ...values: unknown[]
+): string | null | undefined => {
+  for (const value of values) {
+    if (typeof value === "string") {
+      return value;
+    }
+    if (value === null) {
+      return null;
+    }
+  }
+
+  return undefined;
+};
 
 const getSettingsQueryFn = async (): Promise<Settings> => {
   const settings = await SettingsService.getSettings();
+  const agentSettings = (settings.agent_settings ?? {}) as Record<
+    string,
+    SettingsValue
+  >;
 
   return {
     ...settings,
+    llm_model:
+      pickFirstString(settings.llm_model, agentSettings["llm.model"]) ??
+      DEFAULT_SETTINGS.llm_model,
+    llm_base_url:
+      pickFirstString(settings.llm_base_url, agentSettings["llm.base_url"]) ??
+      DEFAULT_SETTINGS.llm_base_url,
+    agent:
+      pickFirstString(agentSettings.agent, settings.agent) ??
+      DEFAULT_SETTINGS.agent,
+    llm_api_key: settings.llm_api_key ?? null,
+    confirmation_mode:
+      pickFirstBoolean(
+        agentSettings["verification.confirmation_mode"],
+        settings.confirmation_mode,
+      ) ?? DEFAULT_SETTINGS.confirmation_mode,
+    security_analyzer:
+      pickNullableString(
+        agentSettings["verification.security_analyzer"],
+        settings.security_analyzer,
+      ) ?? DEFAULT_SETTINGS.security_analyzer,
+    enable_default_condenser:
+      pickFirstBoolean(
+        agentSettings["condenser.enabled"],
+        settings.enable_default_condenser,
+      ) ?? DEFAULT_SETTINGS.enable_default_condenser,
+    condenser_max_size:
+      pickFirstNumber(
+        agentSettings["condenser.max_size"],
+        settings.condenser_max_size,
+      ) ?? DEFAULT_SETTINGS.condenser_max_size,
+    mcp_config:
+      settings.mcp_config ??
+      (agentSettings.mcp_config as Settings["mcp_config"]) ??
+      DEFAULT_SETTINGS.mcp_config,
     search_api_key: settings.search_api_key || "",
     email: settings.email || "",
     git_user_name: settings.git_user_name || DEFAULT_SETTINGS.git_user_name,
     git_user_email: settings.git_user_email || DEFAULT_SETTINGS.git_user_email,
     is_new_user: false,
+    disabled_skills:
+      settings.disabled_skills ?? DEFAULT_SETTINGS.disabled_skills,
     v1_enabled: settings.v1_enabled ?? DEFAULT_SETTINGS.v1_enabled,
     agent_settings_schema:
       settings.agent_settings_schema ?? DEFAULT_SETTINGS.agent_settings_schema,
@@ -38,13 +105,10 @@ export const useSettings = () => {
   const query = useQuery({
     queryKey: ["settings", organizationId],
     queryFn: getSettingsQueryFn,
-    // Only retry if the error is not a 404 because we
-    // would want to show the modal immediately if the
-    // settings are not found
     retry: (_, error) => error.status !== 404,
     refetchOnWindowFocus: false,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 15, // 15 minutes
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
     enabled:
       !isOnIntermediatePage &&
       !!userIsAuthenticated &&
@@ -54,12 +118,7 @@ export const useSettings = () => {
     },
   });
 
-  // We want to return the defaults if the settings aren't found so the user can still see the
-  // options to make their initial save. We don't set the defaults in `initialData` above because
-  // that would prepopulate the data to the cache and mess with expectations. Read more:
-  // https://tanstack.com/query/latest/docs/framework/react/guides/initial-query-data#using-initialdata-to-prepopulate-a-query
   if (query.error?.status === 404) {
-    // Create a new object with only the properties we need, avoiding rest destructuring
     return {
       data: DEFAULT_SETTINGS,
       error: query.error,

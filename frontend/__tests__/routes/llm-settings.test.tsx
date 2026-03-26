@@ -20,9 +20,7 @@ vi.mock("react-router", async () => {
   return {
     ...actual,
     useSearchParams: () => mockUseSearchParams(),
-    useRevalidator: () => ({
-      revalidate: vi.fn(),
-    }),
+    useRevalidator: () => ({ revalidate: vi.fn() }),
   };
 });
 
@@ -37,17 +35,9 @@ vi.mock("#/hooks/query/use-config", () => ({
 }));
 
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
-  const hasSchemaOverride = Object.prototype.hasOwnProperty.call(
-    overrides,
-    "agent_settings_schema",
-  );
-
   return {
     ...MOCK_DEFAULT_USER_SETTINGS,
     ...overrides,
-    agent_settings_schema: hasSchemaOverride
-      ? (overrides.agent_settings_schema ?? null)
-      : MOCK_DEFAULT_USER_SETTINGS.agent_settings_schema,
     agent_settings: {
       ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
       ...overrides.agent_settings,
@@ -67,27 +57,26 @@ function buildOrganizationMember(
     llm_api_key: "",
     max_iterations: 20,
     llm_model: "",
+    llm_api_key_for_byor: null,
     llm_base_url: "",
     ...overrides,
   };
 }
 
-function renderLlmSettingsScreen(
-  options: {
-    appMode?: "oss" | "saas";
-    organizationId?: string;
-    meData?: OrganizationMember;
-  } = {},
-) {
+function renderLlmSettingsScreen({
+  appMode = "oss",
+  organizationId = "1",
+  meData,
+}: {
+  appMode?: "oss" | "saas";
+  organizationId?: string;
+  meData?: OrganizationMember;
+} = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: {
-        retry: false,
-      },
+      queries: { retry: false },
     },
   });
-  const organizationId = options.organizationId ?? "1";
-  const appMode = options.appMode ?? "oss";
 
   useSelectedOrganizationStore.setState({ organizationId });
   mockUseConfig.mockReturnValue({
@@ -98,7 +87,7 @@ function renderLlmSettingsScreen(
   if (appMode === "saas") {
     queryClient.setQueryData(
       ["organizations", organizationId, "me"],
-      options.meData ?? buildOrganizationMember({ org_id: organizationId }),
+      meData ?? buildOrganizationMember({ org_id: organizationId }),
     );
   }
 
@@ -112,13 +101,7 @@ function renderLlmSettingsScreen(
 beforeEach(() => {
   vi.restoreAllMocks();
   resetTestHandlersMockSettings();
-
-  mockUseSearchParams.mockReturnValue([
-    {
-      get: () => null,
-    },
-    vi.fn(),
-  ]);
+  mockUseSearchParams.mockReturnValue([{ get: () => null }, vi.fn()]);
   mockUseIsAuthed.mockReturnValue({ data: true, isLoading: false });
   mockUseConfig.mockReturnValue({
     data: { app_mode: "oss" },
@@ -128,94 +111,125 @@ beforeEach(() => {
 });
 
 describe("LlmSettingsScreen", () => {
-  it("renders critical LLM fields from agent_settings_schema", async () => {
+  it("renders the basic LLM form in OSS mode", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
 
-    renderLlmSettingsScreen();
+    renderLlmSettingsScreen({ appMode: "oss" });
 
     await screen.findByTestId("llm-settings-screen");
-    // Critical fields rendered by CriticalFields component
-    expect(screen.getByTestId("sdk-settings-llm.api_key")).toBeInTheDocument();
-    expect(screen.getByTestId("sdk-settings-llm.base_url")).toBeInTheDocument();
-    // Condenser/critic fields should NOT appear (they have their own pages)
-    expect(
-      screen.queryByTestId("sdk-settings-critic.enabled"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("llm-settings-form-basic")).toBeInTheDocument();
+    expect(screen.getByTestId("llm-provider-input")).toBeInTheDocument();
+    expect(screen.getByTestId("llm-model-input")).toBeInTheDocument();
+    expect(screen.getByTestId("llm-api-key-input")).toBeInTheDocument();
+    expect(screen.getByTestId("submit-button")).toBeInTheDocument();
   });
 
-  it("renders schema-driven settings when backend returns canonical agent_settings fields", async () => {
-    const canonicalSettings: Settings = {
-      ...buildSettings(),
-      agent_settings_schema: MOCK_DEFAULT_USER_SETTINGS.agent_settings_schema,
-      agent_settings: MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-    };
-
+  it("auto-opens advanced mode when advanced LLM settings are already set", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      canonicalSettings,
+      buildSettings({
+        llm_model: "openai/gpt-4o",
+        agent_settings: {
+          "llm.base_url": "https://api.openai.com/v1",
+          agent: "CoActAgent",
+        },
+      }),
     );
 
-    renderLlmSettingsScreen();
+    renderLlmSettingsScreen({ appMode: "oss" });
 
-    await screen.findByTestId("llm-settings-screen");
-    expect(screen.getByTestId("sdk-settings-llm.api_key")).toBeInTheDocument();
-    expect(screen.getByTestId("sdk-settings-llm.base_url")).toBeInTheDocument();
+    await screen.findByTestId("llm-settings-form-advanced");
+    expect(screen.getByTestId("llm-custom-model-input")).toBeInTheDocument();
+    expect(screen.getByTestId("base-url-input")).toBeInTheDocument();
   });
 
-  it("saves changed schema-driven fields through the generic settings payload", async () => {
+  it("hides the API key input for OpenHands provider in SaaS mode", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderLlmSettingsScreen({ appMode: "saas" });
+
+    await screen.findByTestId("llm-settings-screen");
+    expect(screen.queryByTestId("llm-api-key-input")).not.toBeInTheDocument();
+    expect(screen.getByTestId("openhands-api-key-help")).toBeInTheDocument();
+  });
+
+  it("shows the API key input for non-OpenHands providers in SaaS mode", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ llm_model: "openai/gpt-4o" }),
+    );
+
+    renderLlmSettingsScreen({ appMode: "saas" });
+
+    await screen.findByTestId("llm-settings-screen");
+    expect(screen.getByTestId("llm-api-key-input")).toBeInTheDocument();
+  });
+
+  it("makes team members read-only in SaaS mode", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderLlmSettingsScreen({
+      appMode: "saas",
+      meData: buildOrganizationMember({ role: "member" }),
+    });
+
+    await screen.findByTestId("llm-settings-screen");
+    expect(screen.getByTestId("advanced-settings-switch")).toBeDisabled();
+    expect(screen.queryByTestId("submit-button")).not.toBeInTheDocument();
+  });
+
+  it("submits basic form values through SDK setting keys", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ llm_model: "openai/gpt-4o" }),
+    );
     const saveSettingsSpy = vi
       .spyOn(SettingsService, "saveSettings")
       .mockResolvedValue(true);
 
-    renderLlmSettingsScreen();
+    renderLlmSettingsScreen({ appMode: "oss" });
 
-    // Change the API key (always visible in CriticalFields)
-    const apiKeyInput = await screen.findByTestId("sdk-settings-llm.api_key");
-    await userEvent.clear(apiKeyInput);
-    await userEvent.type(apiKeyInput, "sk-test-key");
-    await userEvent.click(screen.getByTestId("save-button"));
+    const apiKeyInput = await screen.findByTestId("llm-api-key-input");
+    await userEvent.type(apiKeyInput, "test-api-key");
+    await userEvent.click(screen.getByTestId("submit-button"));
 
     await waitFor(() => {
       expect(saveSettingsSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          "llm.api_key": "sk-test-key",
+          "llm.model": "openai/gpt-4o",
+          "llm.api_key": "test-api-key",
+          "llm.base_url": "",
         }),
       );
     });
   });
 
-  it("hides the save button for read-only SaaS members", async () => {
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
-
-    renderLlmSettingsScreen({
-      appMode: "saas",
-      organizationId: "2",
-      meData: buildOrganizationMember({ org_id: "2", role: "member" }),
-    });
-
-    await screen.findByTestId("llm-settings-screen");
-    expect(screen.queryByTestId("save-button")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sdk-settings-llm.api_key")).toBeDisabled();
-  });
-
-  it("shows a fallback message when agent settings schema is unavailable", async () => {
+  it("submits advanced form values through SDK setting keys", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({ agent_settings_schema: null }),
+      buildSettings({
+        llm_model: "openai/gpt-4o",
+        agent_settings: {
+          "llm.base_url": "https://api.openai.com/v1",
+          agent: "CoActAgent",
+        },
+      }),
     );
+    const saveSettingsSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
 
-    renderLlmSettingsScreen();
+    renderLlmSettingsScreen({ appMode: "oss" });
 
-    expect(
-      await screen.findByText("SETTINGS$SDK_SCHEMA_UNAVAILABLE"),
-    ).toBeInTheDocument();
-  });
+    const modelInput = await screen.findByTestId("llm-custom-model-input");
+    await userEvent.clear(modelInput);
+    await userEvent.type(modelInput, "anthropic/claude-sonnet-4");
+    await userEvent.click(screen.getByTestId("submit-button"));
 
-  it("renders help link for api key field", async () => {
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
-
-    renderLlmSettingsScreen();
-
-    await screen.findByTestId("llm-settings-screen");
-    expect(screen.getByTestId("help-link-llm.api_key")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(saveSettingsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "llm.model": "anthropic/claude-sonnet-4",
+          "llm.base_url": "https://api.openai.com/v1",
+          agent: "CoActAgent",
+        }),
+      );
+    });
   });
 });

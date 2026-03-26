@@ -1,16 +1,39 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-js/react";
+import { useSelectedOrganizationId } from "#/context/use-selected-organization";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { MCPConfig, Settings } from "#/types/settings";
 import { useSettings } from "../query/use-settings";
-import { useSelectedOrganizationId } from "#/context/use-selected-organization";
 
 type SettingsUpdate = Partial<Settings> & Record<string, unknown>;
+
+const LEGACY_FLAT_TO_SDK: Record<string, string> = {
+  agent: "agent",
+  llm_model: "llm.model",
+  llm_api_key: "llm.api_key",
+  llm_base_url: "llm.base_url",
+  mcp_config: "mcp_config",
+  confirmation_mode: "verification.confirmation_mode",
+  security_analyzer: "verification.security_analyzer",
+  enable_default_condenser: "condenser.enabled",
+  condenser_max_size: "condenser.max_size",
+  max_iterations: "max_iterations",
+};
 
 const saveSettingsMutationFn = async (settings: SettingsUpdate) => {
   const settingsToSave: SettingsUpdate = { ...settings };
   delete settingsToSave.agent_settings_schema;
   delete settingsToSave.agent_settings;
+
+  for (const [legacyKey, sdkKey] of Object.entries(LEGACY_FLAT_TO_SDK)) {
+    const hasLegacyValue = legacyKey in settingsToSave;
+    const hasSdkValue = sdkKey in settingsToSave;
+
+    if (hasLegacyValue && !hasSdkValue) {
+      settingsToSave[sdkKey] = settingsToSave[legacyKey];
+      delete settingsToSave[legacyKey];
+    }
+  }
 
   if (typeof settingsToSave["llm.api_key"] === "string") {
     const apiKey = settingsToSave["llm.api_key"].trim();
@@ -39,7 +62,7 @@ export const useSaveSettings = () => {
   return useMutation({
     mutationFn: async (settings: SettingsUpdate) => {
       const nextMcpConfig = settings.mcp_config as MCPConfig | undefined;
-      const currentMcpConfig = currentSettings?.agent_settings?.mcp_config as
+      const currentMcpConfig = currentSettings?.mcp_config as
         | MCPConfig
         | undefined;
 
