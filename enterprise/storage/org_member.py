@@ -18,6 +18,7 @@ class OrgMember(Base):  # type: ignore
     _llm_api_key = Column(String, nullable=False)
     agent_settings = Column(JSON, nullable=False, default=dict)
     status = Column(String, nullable=True)
+    mcp_config = Column(JSON, nullable=True)
 
     org = relationship('Org', back_populates='org_members')
     user = relationship('User', back_populates='org_members')

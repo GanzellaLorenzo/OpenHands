@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enable_solvability_analysis: false,
   search_api_key: "",
   is_new_user: true,
+  disabled_skills: [],
   mcp_config: {
     sse_servers: [],
     stdio_servers: [],

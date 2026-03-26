@@ -509,3 +509,161 @@ async def test_store_keeps_openhands_managed_keys_member_specific(
             assert member.agent_settings['llm.model'] == 'openhands/claude-opus-4-5-20251101'
             assert member.agent_settings['llm.base_url'] == LITE_LLM_API_URL
             assert member.agent_settings['max_iterations'] == 75
+
+
+@pytest.mark.asyncio
+async def test_store_saves_mcp_config_to_current_member_only(
+    session_maker, async_session_maker, mock_config, org_with_multiple_members_fixture
+):
+    from sqlalchemy import select
+    from storage.org import Org
+    from storage.org_member import OrgMember
+
+    fixture = org_with_multiple_members_fixture
+    org_id = fixture['org_id']
+    admin_user_id = str(fixture['admin_user_id'])
+    member1_user_id = str(fixture['member1_user_id'])
+    member2_user_id = str(fixture['member2_user_id'])
+
+    store = SaasSettingsStore(admin_user_id, mock_config)
+    user_mcp_config = {
+        'sse_servers': [{'url': 'https://user1-mcp-server.com', 'api_key': None}],
+        'stdio_servers': [],
+        'shttp_servers': [],
+    }
+    new_settings = DataSettings(
+        llm_model='test-model',
+        llm_base_url='http://non-litellm-url.com',
+        llm_api_key=SecretStr('test-api-key'),
+        mcp_config=user_mcp_config,
+    )
+
+    with patch('storage.saas_settings_store.a_session_maker', async_session_maker):
+        await store.store(new_settings)
+
+    with session_maker() as session:
+        org = session.execute(select(Org).where(Org.id == org_id)).scalars().first()
+        assert org is not None
+        assert org.agent_settings.get('mcp_config') is None
+
+        members = {
+            str(m.user_id): m
+            for m in session.execute(
+                select(OrgMember).where(OrgMember.org_id == org_id)
+            ).scalars().all()
+        }
+        assert members[admin_user_id].mcp_config == user_mcp_config
+        assert members[member1_user_id].mcp_config is None
+        assert members[member2_user_id].mcp_config is None
+        assert members[admin_user_id].agent_settings.get('mcp_config') is None
+        assert members[member1_user_id].agent_settings.get('mcp_config') is None
+        assert members[member2_user_id].agent_settings.get('mcp_config') is None
+
+
+@pytest.mark.asyncio
+async def test_store_does_not_overwrite_other_members_mcp_config(
+    session_maker, async_session_maker, mock_config, org_with_multiple_members_fixture
+):
+    from sqlalchemy import select
+    from storage.org_member import OrgMember
+
+    fixture = org_with_multiple_members_fixture
+    admin_user_id = str(fixture['admin_user_id'])
+    member1_user_id = str(fixture['member1_user_id'])
+
+    admin_store = SaasSettingsStore(admin_user_id, mock_config)
+    member_store = SaasSettingsStore(member1_user_id, mock_config)
+
+    admin_mcp_config = {
+        'sse_servers': [{'url': 'https://admin-private-server.com', 'api_key': None}],
+        'stdio_servers': [],
+        'shttp_servers': [],
+    }
+    member_mcp_config = {
+        'sse_servers': [{'url': 'https://member-private-server.com', 'api_key': None}],
+        'stdio_servers': [],
+        'shttp_servers': [],
+    }
+
+    with patch('storage.saas_settings_store.a_session_maker', async_session_maker):
+        await admin_store.store(
+            DataSettings(
+                llm_model='test-model',
+                llm_base_url='http://non-litellm-url.com',
+                llm_api_key=SecretStr('test-api-key'),
+                mcp_config=admin_mcp_config,
+            )
+        )
+        await member_store.store(
+            DataSettings(
+                llm_model='test-model',
+                llm_base_url='http://non-litellm-url.com',
+                llm_api_key=SecretStr('test-api-key'),
+                mcp_config=member_mcp_config,
+            )
+        )
+
+    with session_maker() as session:
+        members = {
+            str(m.user_id): m
+            for m in session.execute(select(OrgMember)).scalars().all()
+        }
+        assert members[admin_user_id].mcp_config == admin_mcp_config
+        assert members[member1_user_id].mcp_config == member_mcp_config
+
+
+@pytest.mark.asyncio
+async def test_load_returns_current_member_specific_mcp_config(
+    async_session_maker, mock_config, org_with_multiple_members_fixture
+):
+    fixture = org_with_multiple_members_fixture
+    admin_user_id = str(fixture['admin_user_id'])
+    member1_user_id = str(fixture['member1_user_id'])
+
+    admin_mcp_config = {
+        'sse_servers': [{'url': 'https://admin-private-server.com', 'api_key': None}],
+        'stdio_servers': [],
+        'shttp_servers': [],
+    }
+    member_mcp_config = {
+        'sse_servers': [{'url': 'https://member-private-server.com', 'api_key': None}],
+        'stdio_servers': [],
+        'shttp_servers': [],
+    }
+
+    admin_store = SaasSettingsStore(admin_user_id, mock_config)
+    member_store = SaasSettingsStore(member1_user_id, mock_config)
+
+    with patch('storage.saas_settings_store.a_session_maker', async_session_maker):
+        await admin_store.store(
+            DataSettings(
+                llm_model='test-model',
+                llm_base_url='http://non-litellm-url.com',
+                llm_api_key=SecretStr('test-api-key'),
+                mcp_config=admin_mcp_config,
+            )
+        )
+        await member_store.store(
+            DataSettings(
+                llm_model='test-model',
+                llm_base_url='http://non-litellm-url.com',
+                llm_api_key=SecretStr('test-api-key'),
+                mcp_config=member_mcp_config,
+            )
+        )
+
+    with patch(
+        'storage.saas_settings_store.a_session_maker', async_session_maker
+    ), patch('storage.user_store.a_session_maker', async_session_maker), patch(
+        'storage.org_store.a_session_maker', async_session_maker
+    ):
+        admin_loaded_settings = await admin_store.load()
+        member_loaded_settings = await member_store.load()
+
+    assert admin_loaded_settings is not None
+    assert admin_loaded_settings.mcp_config is not None
+    assert admin_loaded_settings.mcp_config.sse_servers[0].url == 'https://admin-private-server.com'
+
+    assert member_loaded_settings is not None
+    assert member_loaded_settings.mcp_config is not None
+    assert member_loaded_settings.mcp_config.sse_servers[0].url == 'https://member-private-server.com'

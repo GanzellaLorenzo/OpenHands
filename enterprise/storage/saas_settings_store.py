@@ -134,6 +134,8 @@ class SaasSettingsStore(SettingsStore):
             },
         }
         kwargs['llm_api_key'] = org_member.llm_api_key
+        if org_member.mcp_config is not None:
+            kwargs['mcp_config'] = org_member.mcp_config
         effective_member_agent_settings = {
             **org_agent_settings,
             **member_agent_settings,
@@ -224,7 +226,7 @@ class SaasSettingsStore(SettingsStore):
             shared_agent_settings = {
                 key: value
                 for key, value in normalized_agent_settings.items()
-                if key != 'llm.api_key'
+                if key not in {'llm.api_key', 'mcp_config'}
             }
             current_member_llm_api_key = item.get_secret_agent_setting('llm.api_key')
             shared_llm_api_key = (
@@ -238,6 +240,10 @@ class SaasSettingsStore(SettingsStore):
             for key, value in kwargs.items():
                 if hasattr(user, key):
                     setattr(user, key, value)
+                if key != 'mcp_config' and hasattr(org, key):
+                    setattr(org, key, value)
+                if key == 'mcp_config' and hasattr(org_member, key):
+                    setattr(org_member, key, value)
 
             org.agent_settings = shared_agent_settings
 
