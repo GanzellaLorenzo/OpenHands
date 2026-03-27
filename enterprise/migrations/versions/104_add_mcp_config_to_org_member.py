@@ -1,7 +1,7 @@
 """Add mcp_config to org_member for user-specific MCP settings.
 
-Revision ID: 103
-Revises: 102
+Revision ID: 104
+Revises: 103
 Create Date: 2026-03-26
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '103'
-down_revision: Union[str, None] = '102'
+revision: str = '104'
+down_revision: Union[str, None] = '103'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -25,7 +25,14 @@ def upgrade() -> None:
     # This preserves existing configurations while transitioning to user-specific settings.
     conn = op.get_bind()
     orgs_with_config = conn.execute(
-        sa.text('SELECT id, mcp_config FROM org WHERE mcp_config IS NOT NULL')
+        sa.text(
+            """
+            SELECT id, agent_settings -> 'mcp_config' AS mcp_config
+            FROM org
+            WHERE agent_settings::jsonb ? 'mcp_config'
+              AND agent_settings -> 'mcp_config' IS NOT NULL
+            """
+        )
     ).fetchall()
 
     for org_id, mcp_config in orgs_with_config:
