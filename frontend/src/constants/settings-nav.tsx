@@ -2,6 +2,7 @@ import { FiUsers, FiBriefcase } from "react-icons/fi";
 import CreditCardIcon from "#/icons/credit-card.svg?react";
 import KeyIcon from "#/icons/key.svg?react";
 import LightbulbIcon from "#/icons/lightbulb.svg?react";
+import RobotIcon from "#/icons/u-robot.svg?react";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
@@ -59,6 +60,12 @@ export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
     icon: <ServerProcessIcon width={22} height={22} />,
     to: "/settings/mcp",
     text: "SETTINGS$NAV_MCP",
+    section: "personal",
+  },
+  {
+    icon: <RobotIcon width={22} height={22} />,
+    to: "/settings/automations",
+    text: "SETTINGS$NAV_AUTOMATIONS",
     section: "personal",
   },
   // User settings section (no header shown)
