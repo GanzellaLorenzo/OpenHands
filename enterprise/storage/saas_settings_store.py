@@ -148,6 +148,7 @@ class SaasSettingsStore(SettingsStore):
             kwargs.pop('sandbox_grouping_strategy', None)
 
         settings = Settings(**kwargs)
+        object.__setattr__(settings, 'mcp_config', settings.to_legacy_mcp_config())
         if org_agent_settings != (org.agent_settings or {}):
             await self._persist_org_agent_settings_async(org_id, org_agent_settings)
         if effective_member_agent_settings != (org_member.agent_settings or {}):
@@ -237,6 +238,12 @@ class SaasSettingsStore(SettingsStore):
 
             kwargs = item.model_dump(context={'expose_secrets': True})
             kwargs.pop('agent_settings', None)
+            legacy_mcp_config = item.to_legacy_mcp_config()
+            kwargs['mcp_config'] = (
+                legacy_mcp_config.model_dump(mode='python')
+                if legacy_mcp_config is not None
+                else None
+            )
             for key, value in kwargs.items():
                 if hasattr(user, key):
                     setattr(user, key, value)

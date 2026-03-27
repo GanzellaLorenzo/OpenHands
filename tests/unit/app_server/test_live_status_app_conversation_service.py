@@ -928,7 +928,7 @@ class TestLiveStatusAppConversationService:
 
         assert agent.system_prompt_filename == 'system_prompt_planning.j2'
         assert 'plan_structure' in agent.system_prompt_kwargs
-        assert agent.mcp_config == mcp_config
+        assert agent.mcp_config == {'mcpServers': mcp_config}
         assert agent.agent_context is not None
         assert agent.agent_context.system_message_suffix.startswith(
             PLANNING_AGENT_INSTRUCTION

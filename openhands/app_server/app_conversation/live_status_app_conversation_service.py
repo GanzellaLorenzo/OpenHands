@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 import httpx
 from fastapi import Request
+from fastmcp.mcp_config import MCPConfig as SDKMCPConfig
 from pydantic import Field, SecretStr, TypeAdapter
 
 from openhands.agent_server.models import (
@@ -1199,11 +1200,18 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
         # Build agent from settings
         assert agent_settings is not None
+        resolved_mcp_config = None
+        if mcp_config:
+            raw_mcp_config = (
+                mcp_config if 'mcpServers' in mcp_config else {'mcpServers': mcp_config}
+            )
+            resolved_mcp_config = SDKMCPConfig.model_validate(raw_mcp_config)
+
         agent = agent_settings.model_copy(
             update={
                 'llm': llm,
                 'tools': tools,
-                'mcp_config': mcp_config,
+                'mcp_config': resolved_mcp_config,
                 'agent_context': AgentContext(
                     system_message_suffix=effective_suffix,
                     secrets=secrets,
@@ -1440,7 +1448,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                     remote_workspace,
                     selected_repository,
                     working_dir,
-                    disabled_skills=user.disabled_skills,
+                    disabled_skills=getattr(user, 'disabled_skills', None),
                 )
             except Exception as e:
                 _logger.warning(f'Failed to load skills: {e}', exc_info=True)

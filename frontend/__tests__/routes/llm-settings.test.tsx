@@ -57,7 +57,6 @@ function buildOrganizationMember(
     llm_api_key: "",
     max_iterations: 20,
     llm_model: "",
-    llm_api_key_for_byor: null,
     llm_base_url: "",
     ...overrides,
   };
