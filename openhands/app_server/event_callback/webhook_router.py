@@ -63,7 +63,14 @@ async def valid_sandbox(
 ) -> SandboxInfo:
     """Use a session api key for validation, and get a sandbox. Subsequent actions
     are executed in the context of the owner of the sandbox"""
+    _logger.warning(
+        f'webhook valid_sandbox: path={request.url.path}, '
+        f'session_api_key={session_api_key!r}, '
+        f'all_headers={dict(request.headers)}, '
+        f'client={request.client.host if request.client else "unknown"}'
+    )
     if not session_api_key:
+        _logger.warning('webhook valid_sandbox: REJECTING - no session_api_key header')
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, detail='X-Session-API-Key header is required'
         )
@@ -74,13 +81,26 @@ async def valid_sandbox(
     # Since we need access to all sandboxes, this is executed in the context of the admin.
     setattr(state, USER_CONTEXT_ATTR, ADMIN)
     async with get_sandbox_service(state) as sandbox_service:
+        _logger.warning(
+            f'webhook valid_sandbox: looking up key={session_api_key!r}, '
+            f'sandbox_service_type={type(sandbox_service).__name__}'
+        )
         sandbox_info = await sandbox_service.get_sandbox_by_session_api_key(
             session_api_key
         )
         if sandbox_info is None:
+            _logger.warning(
+                f'webhook valid_sandbox: REJECTING - sandbox not found for key={session_api_key!r}'
+            )
             raise HTTPException(
                 status.HTTP_401_UNAUTHORIZED, detail='Invalid session API key'
             )
+
+        _logger.warning(
+            f'webhook valid_sandbox: found sandbox_id={sandbox_info.id}, '
+            f'created_by_user_id={sandbox_info.created_by_user_id}, '
+            f'status={sandbox_info.status}, app_mode={app_mode}'
+        )
 
         # In SAAS Mode there is always a user, so we set the owner of the sandbox
         # as the current user (Validated by the session_api_key they provided)
