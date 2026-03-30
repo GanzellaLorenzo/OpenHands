@@ -51,7 +51,13 @@ export function ConversationNameWithStatus() {
       resumeConversationSandbox({ conversationId, providers });
     }
   };
-
+  console.log(
+    "Conversation",
+    conversation,
+    curAgentState,
+    providers,
+    taskStatus,
+  );
   return (
     <div className="flex items-center">
       <div className="group relative">
