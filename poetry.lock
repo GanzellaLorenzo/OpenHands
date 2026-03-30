@@ -6365,7 +6365,7 @@ llama = ["llama-index (>=0.12.29,<0.13.0)", "llama-index-core (>=0.12.29,<0.13.0
 
 [[package]]
 name = "openhands-agent-server"
-version = "1.14.0"
+version = "1.15.0"
 description = "OpenHands Agent Server - REST/WebSocket interface for OpenHands AI Agent"
 optional = false
 python-versions = ">=3.12"
@@ -6388,13 +6388,13 @@ wsproto = ">=1.2.0"
 [package.source]
 type = "git"
 url = "https://github.com/OpenHands/software-agent-sdk.git"
-reference = "openhands/issue-2228-sdk-settings-schema"
-resolved_reference = "be4ff9aa0e51ab174bc2b86e368dd5552678e973"
+reference = "main"
+resolved_reference = "98090debca69d8349890befb71d53f827c00ad3e"
 subdirectory = "openhands-agent-server"
 
 [[package]]
 name = "openhands-sdk"
-version = "1.14.0"
+version = "1.15.0"
 description = "OpenHands SDK - Core functionality for building AI agents"
 optional = false
 python-versions = ">=3.12"
@@ -6423,13 +6423,13 @@ boto3 = ["boto3 (>=1.35.0)"]
 [package.source]
 type = "git"
 url = "https://github.com/OpenHands/software-agent-sdk.git"
-reference = "openhands/issue-2228-sdk-settings-schema"
-resolved_reference = "be4ff9aa0e51ab174bc2b86e368dd5552678e973"
+reference = "main"
+resolved_reference = "98090debca69d8349890befb71d53f827c00ad3e"
 subdirectory = "openhands-sdk"
 
 [[package]]
 name = "openhands-tools"
-version = "1.14.0"
+version = "1.15.0"
 description = "OpenHands Tools - Runtime tools for AI agents"
 optional = false
 python-versions = ">=3.12"
@@ -6451,8 +6451,8 @@ tom-swe = ">=1.0.3"
 [package.source]
 type = "git"
 url = "https://github.com/OpenHands/software-agent-sdk.git"
-reference = "openhands/issue-2228-sdk-settings-schema"
-resolved_reference = "be4ff9aa0e51ab174bc2b86e368dd5552678e973"
+reference = "main"
+resolved_reference = "98090debca69d8349890befb71d53f827c00ad3e"
 subdirectory = "openhands-tools"
 
 [[package]]
@@ -14849,4 +14849,4 @@ third-party-runtimes = ["daytona", "e2b-code-interpreter", "modal", "runloop-api
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12,<3.14"
-content-hash = "37687a822e71d6d73c0a0571d7beda219bbe4b9aa3079a87486daee7e4d3e452"
+content-hash = "3729c32522ffd6dac716398881274989be863e61511f06f6ea72dc2ca1bd7482"

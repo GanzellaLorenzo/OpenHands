@@ -6306,7 +6306,7 @@ llama = ["llama-index (>=0.12.29,<0.13.0)", "llama-index-core (>=0.12.29,<0.13.0
 
 [[package]]
 name = "openhands-agent-server"
-version = "1.14.0"
+version = "1.15.0"
 description = "OpenHands Agent Server - REST/WebSocket interface for OpenHands AI Agent"
 optional = false
 python-versions = ">=3.12"
@@ -6329,8 +6329,8 @@ wsproto = ">=1.2.0"
 [package.source]
 type = "git"
 url = "https://github.com/OpenHands/software-agent-sdk.git"
-reference = "openhands/issue-2228-sdk-settings-schema"
-resolved_reference = "be4ff9aa0e51ab174bc2b86e368dd5552678e973"
+reference = "main"
+resolved_reference = "98090debca69d8349890befb71d53f827c00ad3e"
 subdirectory = "openhands-agent-server"
 
 [[package]]
@@ -6380,9 +6380,9 @@ memory-profiler = ">=0.61"
 numpy = "*"
 openai = "2.8"
 openhands-aci = "0.3.3"
-openhands-agent-server = {git = "https://github.com/OpenHands/software-agent-sdk.git", rev = "openhands/issue-2228-sdk-settings-schema", subdirectory = "openhands-agent-server"}
-openhands-sdk = {git = "https://github.com/OpenHands/software-agent-sdk.git", rev = "openhands/issue-2228-sdk-settings-schema", subdirectory = "openhands-sdk"}
-openhands-tools = {git = "https://github.com/OpenHands/software-agent-sdk.git", rev = "openhands/issue-2228-sdk-settings-schema", subdirectory = "openhands-tools"}
+openhands-agent-server = {git = "https://github.com/OpenHands/software-agent-sdk.git", rev = "main", subdirectory = "openhands-agent-server"}
+openhands-sdk = {git = "https://github.com/OpenHands/software-agent-sdk.git", rev = "main", subdirectory = "openhands-sdk"}
+openhands-tools = {git = "https://github.com/OpenHands/software-agent-sdk.git", rev = "main", subdirectory = "openhands-tools"}
 opentelemetry-api = ">=1.33.1"
 opentelemetry-exporter-otlp-proto-grpc = ">=1.33.1"
 orjson = ">=3.11.6"
@@ -6437,7 +6437,7 @@ url = ".."
 
 [[package]]
 name = "openhands-sdk"
-version = "1.14.0"
+version = "1.15.0"
 description = "OpenHands SDK - Core functionality for building AI agents"
 optional = false
 python-versions = ">=3.12"
@@ -6466,13 +6466,13 @@ boto3 = ["boto3 (>=1.35.0)"]
 [package.source]
 type = "git"
 url = "https://github.com/OpenHands/software-agent-sdk.git"
-reference = "openhands/issue-2228-sdk-settings-schema"
-resolved_reference = "be4ff9aa0e51ab174bc2b86e368dd5552678e973"
+reference = "main"
+resolved_reference = "98090debca69d8349890befb71d53f827c00ad3e"
 subdirectory = "openhands-sdk"
 
 [[package]]
 name = "openhands-tools"
-version = "1.14.0"
+version = "1.15.0"
 description = "OpenHands Tools - Runtime tools for AI agents"
 optional = false
 python-versions = ">=3.12"
@@ -6494,8 +6494,8 @@ tom-swe = ">=1.0.3"
 [package.source]
 type = "git"
 url = "https://github.com/OpenHands/software-agent-sdk.git"
-reference = "openhands/issue-2228-sdk-settings-schema"
-resolved_reference = "be4ff9aa0e51ab174bc2b86e368dd5552678e973"
+reference = "main"
+resolved_reference = "98090debca69d8349890befb71d53f827c00ad3e"
 subdirectory = "openhands-tools"
 
 [[package]]
