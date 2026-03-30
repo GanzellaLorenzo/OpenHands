@@ -146,14 +146,6 @@ base_app.include_router(
     event_webhook_router
 )  # Add routes for Events in nested runtimes
 
-base_app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
-)
-
 base_app.add_middleware(CorrelationIdMiddleware)
 
 base_app.add_middleware(
