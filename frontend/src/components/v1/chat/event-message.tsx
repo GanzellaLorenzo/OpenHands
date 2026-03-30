@@ -14,8 +14,7 @@ import { useConfig } from "#/hooks/query/use-config";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
-// TODO: Implement V1 feedback functionality when API supports V1 event IDs
-// import { useFeedbackExists } from "#/hooks/query/use-feedback-exists";
+import { useFeedbackExists } from "#/hooks/query/use-feedback-exists";
 import {
   ErrorEventMessage,
   UserAssistantEventMessage,
@@ -93,9 +92,13 @@ interface CommonProps {
   }>;
   isLastMessage: boolean;
   isInLast10Actions: boolean;
-  config: unknown;
+  config?: { app_mode?: string } | null;
   isCheckingFeedback: boolean;
-  feedbackData: { exists: boolean };
+  feedbackData: {
+    exists: boolean;
+    rating?: number;
+    reason?: string;
+  };
   isFromPlanningAgent: boolean;
 }
 
@@ -118,6 +121,10 @@ const renderUserMessageWithSkillReady = (
           microagentPRUrl={commonProps.microagentPRUrl}
           actions={commonProps.actions}
           isLastMessage={false}
+          isInLast10Actions={commonProps.isInLast10Actions}
+          config={commonProps.config}
+          isCheckingFeedback={commonProps.isCheckingFeedback}
+          feedbackData={commonProps.feedbackData}
           isFromPlanningAgent={commonProps.isFromPlanningAgent}
         />
         <GenericEventMessageWrapper
@@ -136,6 +143,10 @@ const renderUserMessageWithSkillReady = (
         microagentPRUrl={commonProps.microagentPRUrl}
         actions={commonProps.actions}
         isLastMessage={isLastMessage}
+        isInLast10Actions={commonProps.isInLast10Actions}
+        config={commonProps.config}
+        isCheckingFeedback={commonProps.isCheckingFeedback}
+        feedbackData={commonProps.feedbackData}
         isFromPlanningAgent={commonProps.isFromPlanningAgent}
       />
     );
@@ -163,10 +174,10 @@ export function EventMessage({
     curAgentState === AgentState.RUNNING ||
     curAgentState === AgentState.LOADING;
 
-  // V1 events use string IDs, but useFeedbackExists expects number
-  // For now, we'll skip feedback functionality for V1 events
-  const feedbackData = { exists: false };
-  const isCheckingFeedback = false;
+  const {
+    data: feedbackData = { exists: false },
+    isLoading: isCheckingFeedback,
+  } = useFeedbackExists(event.id);
 
   // Read isFromPlanningAgent directly from the event object
   const isFromPlanningAgent = event.isFromPlanningAgent || false;

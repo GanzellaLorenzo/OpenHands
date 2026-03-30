@@ -56,7 +56,8 @@ export function ErrorEventMessage({
         actions={actions}
       />
       <LikertScaleWrapper
-        event={event}
+        eventId={event.id}
+        isErrorEvent
         isLastMessage={isLastMessage}
         isInLast10Actions={isInLast10Actions}
         config={config}

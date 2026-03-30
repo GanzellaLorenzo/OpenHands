@@ -15,7 +15,6 @@ import {
 import { openHands } from "../open-hands-axios";
 import { Provider } from "#/types/settings";
 import { SuggestedTask } from "#/utils/types";
-import { BatchFeedbackData } from "#/hooks/query/use-batch-feedback";
 
 class ConversationService {
   private static currentConversation: Conversation | null = null;
@@ -84,7 +83,7 @@ class ConversationService {
   static async submitConversationFeedback(
     conversationId: string,
     rating: number,
-    eventId?: number,
+    eventId?: string | number,
     reason?: string,
   ): Promise<{ status: string; message: string }> {
     const url = `/feedback/conversation`;
@@ -110,7 +109,7 @@ class ConversationService {
    */
   static async checkFeedbackExists(
     conversationId: string,
-    eventId: number,
+    eventId: string | number,
   ): Promise<{ exists: boolean; rating?: number; reason?: string }> {
     try {
       const url = `/feedback/conversation/${conversationId}/${eventId}`;
@@ -138,7 +137,7 @@ class ConversationService {
         exists: boolean;
         rating?: number;
         reason?: string;
-        metadata?: Record<string, BatchFeedbackData>;
+        metadata?: Record<string, unknown>;
       }
     >
   > {
@@ -150,7 +149,7 @@ class ConversationService {
           exists: boolean;
           rating?: number;
           reason?: string;
-          metadata?: Record<string, BatchFeedbackData>;
+          metadata?: Record<string, unknown>;
         }
       >
     >(url);

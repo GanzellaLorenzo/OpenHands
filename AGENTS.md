@@ -190,6 +190,12 @@ PYTHONPATH=".:$PYTHONPATH" poetry run pytest tests/unit/telemetry/ --confcutdir=
 poetry run pre-commit run --all-files --show-diff-on-failure --config ./dev_config/python/.pre-commit-config.yaml
 ```
 
+**Feedback/Event ID Notes:**
+- V1 conversation event IDs are canonical strings across backend, frontend, and SDK; do not coerce them to numbers in feedback code.
+- `enterprise/storage/feedback.py` uses `feedback_metadata` as the ORM attribute for the `conversation_feedback.metadata` column because `metadata` is reserved by SQLAlchemy declarative models.
+- For lightweight enterprise unit runs that do not need the shared `enterprise/tests/unit/conftest.py`, `poetry run pytest --noconftest enterprise/tests/unit/test_feedback.py` can avoid heavy optional dependency setup.
+
+
 **Running Enterprise Server:**
 ```bash
 cd enterprise

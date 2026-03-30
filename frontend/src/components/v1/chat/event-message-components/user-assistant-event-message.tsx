@@ -6,8 +6,7 @@ import { ImageCarousel } from "../../../features/images/image-carousel";
 // import { FileList } from "../../../features/files/file-list";
 import { V1ConfirmationButtons } from "#/components/shared/buttons/v1-confirmation-buttons";
 import { MicroagentStatusWrapper } from "../../../features/chat/event-message-components/microagent-status-wrapper";
-// TODO: Implement V1 LikertScaleWrapper when API supports V1 event IDs
-// import { LikertScaleWrapper } from "../../../features/chat/event-message-components/likert-scale-wrapper";
+import { LikertScaleWrapper } from "../../../features/chat/event-message-components/likert-scale-wrapper";
 import { parseMessageFromEvent } from "../event-content-helpers/parse-message-from-event";
 import { MicroagentStatus } from "#/types/microagent-status";
 
@@ -22,6 +21,14 @@ interface UserAssistantEventMessageProps {
     tooltip?: string;
   }>;
   isLastMessage: boolean;
+  isInLast10Actions: boolean;
+  config?: { app_mode?: string } | null;
+  isCheckingFeedback: boolean;
+  feedbackData: {
+    exists: boolean;
+    rating?: number;
+    reason?: string;
+  };
   isFromPlanningAgent: boolean;
 }
 
@@ -32,6 +39,10 @@ export function UserAssistantEventMessage({
   microagentPRUrl,
   actions,
   isLastMessage,
+  isInLast10Actions,
+  config,
+  isCheckingFeedback,
+  feedbackData,
   isFromPlanningAgent,
 }: UserAssistantEventMessageProps) {
   const message = parseMessageFromEvent(event);
@@ -66,7 +77,16 @@ export function UserAssistantEventMessage({
         microagentPRUrl={microagentPRUrl}
         actions={actions}
       />
-      {/* LikertScaleWrapper expects V0 event types, skip for now */}
+      {event.source === "agent" && (
+        <LikertScaleWrapper
+          eventId={event.id}
+          isLastMessage={isLastMessage}
+          isInLast10Actions={isInLast10Actions}
+          config={config}
+          isCheckingFeedback={isCheckingFeedback}
+          feedbackData={feedbackData}
+        />
+      )}
     </>
   );
 }

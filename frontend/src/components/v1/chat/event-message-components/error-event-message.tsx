@@ -3,8 +3,7 @@ import { AgentErrorEvent } from "#/types/v1/core";
 import { isAgentErrorEvent } from "#/types/v1/type-guards";
 import { ErrorMessage } from "../../../features/chat/error-message";
 import { MicroagentStatusWrapper } from "../../../features/chat/event-message-components/microagent-status-wrapper";
-// TODO: Implement V1 LikertScaleWrapper when API supports V1 event IDs
-// import { LikertScaleWrapper } from "../../../features/chat/event-message-components/likert-scale-wrapper";
+import { LikertScaleWrapper } from "../../../features/chat/event-message-components/likert-scale-wrapper";
 import { MicroagentStatus } from "#/types/microagent-status";
 
 interface ErrorEventMessageProps {
@@ -17,6 +16,15 @@ interface ErrorEventMessageProps {
     onClick: () => void;
     tooltip?: string;
   }>;
+  isLastMessage: boolean;
+  isInLast10Actions: boolean;
+  config?: { app_mode?: string } | null;
+  isCheckingFeedback: boolean;
+  feedbackData: {
+    exists: boolean;
+    rating?: number;
+    reason?: string;
+  };
 }
 
 export function ErrorEventMessage({
@@ -25,6 +33,11 @@ export function ErrorEventMessage({
   microagentConversationId,
   microagentPRUrl,
   actions,
+  isLastMessage,
+  isInLast10Actions,
+  config,
+  isCheckingFeedback,
+  feedbackData,
 }: ErrorEventMessageProps) {
   if (!isAgentErrorEvent(event)) {
     return null;
@@ -43,7 +56,15 @@ export function ErrorEventMessage({
         microagentPRUrl={microagentPRUrl}
         actions={actions}
       />
-      {/* LikertScaleWrapper expects V0 event types, skip for now */}
+      <LikertScaleWrapper
+        eventId={event.id}
+        isErrorEvent
+        isLastMessage={isLastMessage}
+        isInLast10Actions={isInLast10Actions}
+        config={config}
+        isCheckingFeedback={isCheckingFeedback}
+        feedbackData={feedbackData}
+      />
     </div>
   );
 }

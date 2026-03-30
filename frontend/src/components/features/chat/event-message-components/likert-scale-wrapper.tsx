@@ -1,11 +1,9 @@
 import React from "react";
-import { OpenHandsAction } from "#/types/core/actions";
-import { OpenHandsObservation } from "#/types/core/observations";
-import { isErrorObservation } from "#/types/core/guards";
 import { LikertScale } from "../../feedback/likert-scale";
 
 interface LikertScaleWrapperProps {
-  event: OpenHandsAction | OpenHandsObservation;
+  eventId: string | number;
+  isErrorEvent?: boolean;
   isLastMessage: boolean;
   isInLast10Actions: boolean;
   config?: { app_mode?: string } | null;
@@ -18,7 +16,8 @@ interface LikertScaleWrapperProps {
 }
 
 export function LikertScaleWrapper({
-  event,
+  eventId,
+  isErrorEvent = false,
   isLastMessage,
   isInLast10Actions,
   config,
@@ -29,11 +28,7 @@ export function LikertScaleWrapper({
     return null;
   }
 
-  // For error observations, show if in last 10 actions
-  // For other events, show only if it's the last message
-  const shouldShow = isErrorObservation(event)
-    ? isInLast10Actions
-    : isLastMessage;
+  const shouldShow = isErrorEvent ? isInLast10Actions : isLastMessage;
 
   if (!shouldShow) {
     return null;
@@ -41,7 +36,7 @@ export function LikertScaleWrapper({
 
   return (
     <LikertScale
-      eventId={event.id}
+      eventId={eventId}
       initiallySubmitted={feedbackData.exists}
       initialRating={feedbackData.rating}
       initialReason={feedbackData.reason}

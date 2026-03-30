@@ -5,13 +5,12 @@ import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { useSubmitConversationFeedback } from "#/hooks/mutation/use-submit-conversation-feedback";
 import { ScrollContext } from "#/context/scroll-context";
-import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 
 // Global timeout duration in milliseconds
 const AUTO_SUBMIT_TIMEOUT = 10000;
 
 interface LikertScaleProps {
-  eventId?: number;
+  eventId?: string | number;
   initiallySubmitted?: boolean;
   initialRating?: number;
   initialReason?: string;
@@ -24,7 +23,6 @@ export function LikertScale({
   initialReason,
 }: LikertScaleProps) {
   const { t } = useTranslation();
-  const { data: conversation } = useActiveConversation();
 
   const [selectedRating, setSelectedRating] = useState<number | null>(
     initialRating || null,
@@ -119,15 +117,6 @@ export function LikertScale({
       }, 100);
     }
   }, [scrollToBottom, autoScroll, showReasons]);
-
-  // TODO: Hide LikertScale for V1 conversations
-  // This is a temporary measure and may be re-enabled in the future
-  const isV1Conversation = conversation?.conversation_version === "V1";
-
-  // Don't render anything for V1 conversations
-  if (isV1Conversation) {
-    return null;
-  }
 
   // Submit feedback and disable the component
   const submitFeedback = (rating: number, reason?: string) => {

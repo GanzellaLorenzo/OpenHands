@@ -3,8 +3,7 @@ import { ActionEvent } from "#/types/v1/core";
 import { FinishAction } from "#/types/v1/core/base/action";
 import { ChatMessage } from "../../../features/chat/chat-message";
 import { MicroagentStatusWrapper } from "../../../features/chat/event-message-components/microagent-status-wrapper";
-// TODO: Implement V1 LikertScaleWrapper when API supports V1 event IDs
-// import { LikertScaleWrapper } from "../../../features/chat/event-message-components/likert-scale-wrapper";
+import { LikertScaleWrapper } from "../../../features/chat/event-message-components/likert-scale-wrapper";
 import { getEventContent } from "../event-content-helpers/get-event-content";
 import { MicroagentStatus } from "#/types/microagent-status";
 
@@ -18,6 +17,15 @@ interface FinishEventMessageProps {
     onClick: () => void;
     tooltip?: string;
   }>;
+  isLastMessage: boolean;
+  isInLast10Actions: boolean;
+  config?: { app_mode?: string } | null;
+  isCheckingFeedback: boolean;
+  feedbackData: {
+    exists: boolean;
+    rating?: number;
+    reason?: string;
+  };
   isFromPlanningAgent?: boolean;
 }
 
@@ -27,6 +35,11 @@ export function FinishEventMessage({
   microagentConversationId,
   microagentPRUrl,
   actions,
+  isLastMessage,
+  isInLast10Actions,
+  config,
+  isCheckingFeedback,
+  feedbackData,
   isFromPlanningAgent = false,
 }: FinishEventMessageProps) {
   const eventContent = getEventContent(event);
@@ -50,7 +63,14 @@ export function FinishEventMessage({
         microagentPRUrl={microagentPRUrl}
         actions={actions}
       />
-      {/* LikertScaleWrapper expects V0 event types, skip for now */}
+      <LikertScaleWrapper
+        eventId={event.id}
+        isLastMessage={isLastMessage}
+        isInLast10Actions={isInLast10Actions}
+        config={config}
+        isCheckingFeedback={isCheckingFeedback}
+        feedbackData={feedbackData}
+      />
     </>
   );
 }

@@ -70,7 +70,7 @@ export function UserAssistantEventMessage({
       />
       {isAssistantMessage(event) && event.action === "message" && (
         <LikertScaleWrapper
-          event={event}
+          eventId={event.id}
           isLastMessage={isLastMessage}
           isInLast10Actions={isInLast10Actions}
           config={config}

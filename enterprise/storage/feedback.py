@@ -23,7 +23,8 @@ class ConversationFeedback(Base):  # type: ignore
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     conversation_id = Column(String, nullable=False, index=True)
-    event_id = Column(Integer, nullable=True)
+    event_id = Column(String, nullable=True)
     rating = Column(Integer, nullable=False)
     reason = Column(Text, nullable=True)
+    feedback_metadata = Column('metadata', JSON, nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())

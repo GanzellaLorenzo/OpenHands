@@ -3,12 +3,13 @@ import ConversationService from "#/api/conversation-service/conversation-service
 import { useConversationId } from "#/hooks/use-conversation-id";
 import {
   BatchFeedbackData,
+  FeedbackEventId,
   getFeedbackQueryKey,
 } from "../query/use-batch-feedback";
 
 type SubmitConversationFeedbackArgs = {
   rating: number;
-  eventId?: number;
+  eventId?: FeedbackEventId;
   reason?: string;
 };
 
@@ -25,51 +26,48 @@ export const useSubmitConversationFeedback = () => {
         reason,
       ),
     onMutate: async ({ rating, eventId, reason }) => {
-      if (!eventId) return { previousFeedback: null };
+      if (eventId === undefined || eventId === null) {
+        return { previousFeedback: null };
+      }
 
-      // Get the query key for the feedback data
       const queryKey = getFeedbackQueryKey(conversationId);
 
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey });
 
-      // Snapshot the previous value
       const previousFeedback =
         queryClient.getQueryData<Record<string, BatchFeedbackData>>(queryKey);
 
-      // Optimistically update the cache
       queryClient.setQueryData<Record<string, BatchFeedbackData>>(
         queryKey,
-        (old = {}) => {
-          const newData = { ...old };
-          newData[eventId.toString()] = {
+        (old = {}) => ({
+          ...old,
+          [eventId.toString()]: {
             exists: true,
             rating,
             reason,
             metadata: { source: "likert-scale" },
-          };
-          return newData;
-        },
+          },
+        }),
       );
 
-      // Return a context object with the snapshotted value
       return { previousFeedback };
     },
     onError: (error, { eventId }, context) => {
-      // Roll back to the previous value on error
-      if (context?.previousFeedback && eventId) {
+      if (
+        context?.previousFeedback &&
+        eventId !== undefined &&
+        eventId !== null
+      ) {
         queryClient.setQueryData(
           getFeedbackQueryKey(conversationId),
           context.previousFeedback,
         );
       }
-      // Log error but don't show toast - user will just see the UI stay in unsubmitted state
       // eslint-disable-next-line no-console
       console.error(error);
     },
     onSettled: (_, __, { eventId }) => {
-      if (eventId) {
-        // Invalidate both the old and new query keys to ensure consistency
+      if (eventId !== undefined && eventId !== null) {
         queryClient.invalidateQueries({
           queryKey: getFeedbackQueryKey(conversationId),
         });
