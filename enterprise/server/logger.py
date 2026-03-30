@@ -79,6 +79,7 @@ def setup_json_logger(
 
     handler = logging.StreamHandler(_out)
     handler.setLevel(level)
+    # uuid_length=32 removes hyphens from the correlation ID for compactness
     handler.addFilter(CorrelationIdFilter(uuid_length=32, default_value='-'))
 
     formatter = JsonFormatter(
