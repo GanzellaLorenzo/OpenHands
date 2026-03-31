@@ -39,13 +39,12 @@ vi.mock("#/hooks/use-tracking", () => ({
   }),
 }));
 
-const renderOnboardingForm = () => {
-  return renderWithProviders(
+const renderOnboardingForm = () =>
+  renderWithProviders(
     <MemoryRouter>
       <OnboardingForm />
     </MemoryRouter>,
   );
-};
 
 describe("OnboardingForm - Cloud Mode", () => {
   beforeEach(() => {
@@ -329,7 +328,7 @@ describe("OnboardingForm - Cloud Mode", () => {
 
 describe("OnboardingForm - Self-Hosted Mode", () => {
   // Self-hosted mode has 3 steps: org_name, org_size, use_case
-  // The role question is saas-only and not shown in self-hosted mode
+  // The role question is cloud-only and not shown in self-hosted mode
 
   beforeEach(() => {
     mockMutate.mockClear();
@@ -355,7 +354,7 @@ describe("OnboardingForm - Self-Hosted Mode", () => {
   it("should display step progress indicator with 3 bars for self-hosted mode", () => {
     renderOnboardingForm();
 
-    // Self-hosted has 3 steps: org_name, org_size, use_case (role is saas-only)
+    // Self-hosted has 3 steps: org_name, org_size, use_case (role is cloud-only)
     const stepHeader = screen.getByTestId("step-header");
     const progressBars = stepHeader.querySelectorAll(".rounded-full");
     expect(progressBars).toHaveLength(3);
@@ -419,7 +418,7 @@ describe("OnboardingForm - Self-Hosted Mode", () => {
     await user.click(screen.getByRole("button", { name: /finish/i }));
 
     expect(mockTrackOnboardingCompleted).toHaveBeenCalledTimes(1);
-    // Note: role is not included since role question is saas-only
+    // Note: role is not included since role question is cloud-only
     expect(mockTrackOnboardingCompleted).toHaveBeenCalledWith({
       role: undefined,
       orgSize: "org_2_10",
@@ -465,5 +464,59 @@ describe("OnboardingForm - Self-Hosted Mode", () => {
 
     const nextButton = screen.getByRole("button", { name: /next/i });
     expect(nextButton).not.toBeDisabled();
+  });
+
+  it("should NOT track onboarding completion for non-owners in self-hosted mode", async () => {
+    // Override the mock to return a member (non-owner) role
+    mockUseMe.mockReturnValue({ data: { role: "member" } });
+
+    const user = userEvent.setup();
+    renderOnboardingForm();
+
+    // Complete the full self-hosted onboarding flow (3 steps)
+    const orgNameInput = screen.getByTestId("form-input-org_name");
+    const orgDomainInput = screen.getByTestId("form-input-org_domain");
+    await user.type(orgNameInput, "Test Company");
+    await user.type(orgDomainInput, "test.com");
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await user.click(screen.getByTestId("step-option-org_2_10"));
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await user.click(screen.getByTestId("step-option-new_features"));
+    await user.click(screen.getByRole("button", { name: /finish/i }));
+
+    // Tracking should NOT be called for non-owners in self-hosted mode
+    expect(mockTrackOnboardingCompleted).not.toHaveBeenCalled();
+
+    // But onboarding submission should still work
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("should NOT track onboarding completion for admins in self-hosted mode", async () => {
+    // Override the mock to return an admin role
+    mockUseMe.mockReturnValue({ data: { role: "admin" } });
+
+    const user = userEvent.setup();
+    renderOnboardingForm();
+
+    // Complete the full self-hosted onboarding flow (3 steps)
+    const orgNameInput = screen.getByTestId("form-input-org_name");
+    const orgDomainInput = screen.getByTestId("form-input-org_domain");
+    await user.type(orgNameInput, "Test Company");
+    await user.type(orgDomainInput, "test.com");
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await user.click(screen.getByTestId("step-option-org_2_10"));
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await user.click(screen.getByTestId("step-option-new_features"));
+    await user.click(screen.getByRole("button", { name: /finish/i }));
+
+    // Tracking should NOT be called for admins in self-hosted mode (only owners)
+    expect(mockTrackOnboardingCompleted).not.toHaveBeenCalled();
+
+    // But onboarding submission should still work
+    expect(mockMutate).toHaveBeenCalledTimes(1);
   });
 });
