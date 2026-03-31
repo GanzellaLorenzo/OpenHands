@@ -11,15 +11,30 @@ import { useTracking } from "#/hooks/use-tracking";
 import { ENABLE_ONBOARDING } from "#/utils/feature-flags";
 import { cn } from "#/utils/utils";
 import { useConfig } from "#/hooks/query/use-config";
+import { useMe } from "#/hooks/query/use-me";
 import {
   ONBOARDING_FORM,
   OnboardingQuestion,
   OnboardingAppMode,
 } from "#/constants/onboarding";
-import { DeploymentMode } from "#/api/option-service/option.types";
+import {
+  DeploymentMode,
+  WebClientConfig,
+} from "#/api/option-service/option.types";
+import { queryClient } from "#/query-client-config";
+import OptionService from "#/api/option-service/option-service.api";
 
 export const clientLoader = async () => {
-  if (!ENABLE_ONBOARDING()) {
+  // Fetch config to check app_mode
+  let config = queryClient.getQueryData<WebClientConfig>(["web-client-config"]);
+  if (!config) {
+    config = await OptionService.getConfig();
+    queryClient.setQueryData<WebClientConfig>(["web-client-config"], config);
+  }
+
+  // Only allow access to onboarding for SaaS mode (cloud or self-hosted)
+  // OSS users should never reach /onboarding
+  if (config?.app_mode !== "saas" || !ENABLE_ONBOARDING()) {
     return redirect("/");
   }
 
@@ -68,6 +83,7 @@ function OnboardingForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const config = useConfig({ enabled: true });
+  const { data: me } = useMe();
   const { mutate: submitOnboarding } = useSubmitOnboarding();
   const { trackOnboardingCompleted } = useTracking();
 
@@ -154,8 +170,16 @@ function OnboardingForm() {
     if (isLastStep) {
       submitOnboarding({ selections: answers });
 
-      // Only track onboarding for SaaS users
-      if (config.data?.app_mode === "saas") {
+      // Track onboarding completion based on deployment mode:
+      // - Cloud mode: track ALL users
+      // - Self-hosted mode: track only org owners (SuperAdmin)
+      const deploymentMode = config.data?.feature_flags?.deployment_mode;
+      const isOwner = me?.role === "owner";
+      const shouldTrack =
+        deploymentMode === "cloud" ||
+        (deploymentMode === "self_hosted" && isOwner);
+
+      if (shouldTrack) {
         trackOnboardingCompleted({
           role: typeof answers.role === "string" ? answers.role : undefined,
           orgSize:

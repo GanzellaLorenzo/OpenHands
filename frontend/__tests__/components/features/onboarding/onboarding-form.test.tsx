@@ -8,6 +8,7 @@ import OnboardingForm from "#/routes/onboarding-form";
 const mockMutate = vi.fn();
 const mockNavigate = vi.fn();
 const mockUseConfig = vi.fn();
+const mockUseMe = vi.fn();
 const mockTrackOnboardingCompleted = vi.fn();
 
 vi.mock("react-router", async (importOriginal) => {
@@ -26,6 +27,10 @@ vi.mock("#/hooks/mutation/use-submit-onboarding", () => ({
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => mockUseConfig(),
+}));
+
+vi.mock("#/hooks/query/use-me", () => ({
+  useMe: () => mockUseMe(),
 }));
 
 vi.mock("#/hooks/use-tracking", () => ({
@@ -54,6 +59,8 @@ describe("OnboardingForm - Cloud Mode", () => {
       },
       isLoading: false,
     });
+    // Cloud mode tracks all users, role doesn't matter
+    mockUseMe.mockReturnValue({ data: { role: "member" } });
   });
 
   it("should render with the correct test id", () => {
@@ -335,6 +342,8 @@ describe("OnboardingForm - Self-Hosted Mode", () => {
       },
       isLoading: false,
     });
+    // Self-hosted mode only tracks org owners
+    mockUseMe.mockReturnValue({ data: { role: "owner" } });
   });
 
   it("should render with the correct test id", () => {
