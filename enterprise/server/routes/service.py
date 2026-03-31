@@ -400,43 +400,4 @@ async def get_sandbox_automation_metadata(
     )
 
 
-@service_router.delete('/sandboxes/{sandbox_id}/automation-metadata')
-async def delete_sandbox_automation_metadata(
-    sandbox_id: str,
-    x_service_api_key: str | None = Header(default=None, alias='X-Service-API-Key'),
-) -> dict:
-    """
-    Delete automation metadata for a sandbox.
 
-    Args:
-        sandbox_id: The sandbox ID to delete metadata for
-        x_service_api_key: Service API key header for authentication
-
-    Returns:
-        Success message
-
-    Raises:
-        HTTPException: 401 if service key is invalid
-        HTTPException: 404 if metadata not found
-    """
-    # Validate service API key
-    service_id = await validate_service_api_key(x_service_api_key)
-
-    from storage.sandbox_automation_metadata_store import SandboxAutomationMetadataStore
-
-    deleted = await SandboxAutomationMetadataStore.delete_metadata(sandbox_id)
-    if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f'No automation metadata found for sandbox {sandbox_id}',
-        )
-
-    logger.info(
-        'Service deleted sandbox automation metadata',
-        extra={
-            'service_id': service_id,
-            'sandbox_id': sandbox_id,
-        },
-    )
-
-    return {'message': 'Sandbox automation metadata deleted successfully'}
