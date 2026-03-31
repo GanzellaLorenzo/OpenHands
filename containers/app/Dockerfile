@@ -73,6 +73,37 @@ ENV VIRTUAL_ENV=/app/.venv \
 
 COPY --chown=openhands:openhands --chmod=770 --from=backend-builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
+# Pin pip to a known-good version (reproducible builds) and fix CVE-2025-8869.
+# The runtime uses the venv pip because PATH is prefixed with ${VIRTUAL_ENV}/bin.
+ARG PIP_VERSION=26.0.1
+RUN python -m pip install --no-cache-dir "pip==${PIP_VERSION}" && \
+    sudo /usr/local/bin/python3 - <<'PY'
+import ensurepip
+import shutil
+import sysconfig
+from pathlib import Path
+
+# Remove the system pip installation to reduce attack surface and avoid scanning both
+# system + venv pip. The app uses the venv pip via PATH.
+purelib = Path(sysconfig.get_paths()["purelib"])
+for pattern in ("pip", "pip-*.dist-info", "pip-*.egg-info"):
+    for p in purelib.glob(pattern):
+        if p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+        else:
+            p.unlink(missing_ok=True)
+
+bin_dir = Path("/usr/local/bin")
+for p in [bin_dir / "pip", bin_dir / "pip3", *bin_dir.glob("pip3.*")]:
+    p.unlink(missing_ok=True)
+
+bundled = Path(ensurepip.__file__).parent / "_bundled"
+if bundled.exists():
+    for whl in bundled.glob("pip-*.whl"):
+        whl.unlink(missing_ok=True)
+PY
+
+
 COPY --chown=openhands:openhands --chmod=770 ./skills ./skills
 COPY --chown=openhands:openhands --chmod=770 ./openhands ./openhands
 COPY --chown=openhands:openhands --chmod=777 ./openhands/runtime/plugins ./openhands/runtime/plugins
