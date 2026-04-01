@@ -24,6 +24,7 @@ def _is_all_hands_managed_domain(host: str) -> bool:
         host == 'app.all-hands.dev'
         or host == 'app.openhands.ai'
         or host.endswith('.all-hands.dev')
+        or host.endswith('.openhands.ai')
         or host == 'localhost'
     )
 

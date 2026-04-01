@@ -25,7 +25,6 @@ import { queryClient } from "#/query-client-config";
 import OptionService from "#/api/option-service/option-service.api";
 
 export const clientLoader = async () => {
-  // Fetch config to check app_mode
   let config = queryClient.getQueryData<WebClientConfig>(["web-client-config"]);
   if (!config) {
     config = await OptionService.getConfig();

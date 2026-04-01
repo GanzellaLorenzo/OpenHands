@@ -13,13 +13,11 @@ export const useSubmitOnboarding = () => {
 
   return useMutation({
     mutationFn: async ({ selections }: SubmitOnboardingArgs) => {
-      // Mark onboarding as complete on the backend
+      // Mark onboarding as complete
       await openHands.post("/api/complete_onboarding");
-      // TODO: persist user responses
       return { selections };
     },
     onSuccess: () => {
-      // Invalidate settings query to refresh onboarding_completed status
       queryClient.invalidateQueries({ queryKey: ["settings"] });
 
       const finalRedirectUrl = "/";
