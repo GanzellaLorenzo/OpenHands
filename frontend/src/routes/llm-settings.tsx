@@ -199,7 +199,7 @@ function LlmSettingsScreen() {
               testId={testId}
               label={t(I18nKey.SETTINGS_FORM$API_KEY)}
               type="password"
-              className="w-full max-w-[680px]"
+              className="w-full"
               value={
                 typeof values["llm.api_key"] === "string"
                   ? values["llm.api_key"]
@@ -273,7 +273,7 @@ function LlmSettingsScreen() {
                 testId="llm-custom-model-input"
                 label={t(I18nKey.SETTINGS$CUSTOM_MODEL)}
                 type="text"
-                className="w-full max-w-[680px]"
+                className="w-full"
                 value={modelValue}
                 onChange={(value) => onChange("llm.model", value)}
                 isDisabled={isDisabled}
@@ -287,7 +287,7 @@ function LlmSettingsScreen() {
                 testId="base-url-input"
                 label={t(I18nKey.SETTINGS$BASE_URL)}
                 type="text"
-                className="w-full max-w-[680px]"
+                className="w-full"
                 value={baseUrlValue}
                 placeholder="https://api.openai.com"
                 onChange={(value) => onChange("llm.base_url", value)}
@@ -305,7 +305,7 @@ function LlmSettingsScreen() {
                     testId="search-api-key-input"
                     label={t(I18nKey.SETTINGS$SEARCH_API_KEY)}
                     type="password"
-                    className="w-full max-w-[680px]"
+                    className="w-full"
                     value={searchApiKey}
                     placeholder={t(I18nKey.API$TVLY_KEY_EXAMPLE)}
                     onChange={(value) => {
@@ -348,7 +348,7 @@ function LlmSettingsScreen() {
                         }
                       }}
                       isDisabled={isDisabled}
-                      wrapperClassName="w-full max-w-[680px]"
+                      wrapperClassName="w-full"
                     />
                   ) : null}
                 </>
