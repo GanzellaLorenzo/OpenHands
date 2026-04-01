@@ -7,7 +7,7 @@ import {
   hasAdvancedSettingsOverrides,
   inferInitialView,
   SPECIALLY_RENDERED_KEYS,
-} from "./sdk-settings-schema";
+} from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings } from "#/types/settings";
 

@@ -6,33 +6,12 @@ import { Settings, SettingsValue } from "#/types/settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { useIsAuthed } from "./use-is-authed";
 import { useConfig } from "./use-config";
-
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === "string" && value.length > 0;
-
-const pickFirstString = (...values: unknown[]): string | undefined =>
-  values.find(isNonEmptyString);
-
-const pickFirstBoolean = (...values: unknown[]): boolean | undefined =>
-  values.find((value): value is boolean => typeof value === "boolean");
-
-const pickFirstNumber = (...values: unknown[]): number | undefined =>
-  values.find((value): value is number => typeof value === "number");
-
-const pickNullableString = (
-  ...values: unknown[]
-): string | null | undefined => {
-  for (const value of values) {
-    if (typeof value === "string") {
-      return value;
-    }
-    if (value === null) {
-      return null;
-    }
-  }
-
-  return undefined;
-};
+import {
+  pickFirstBoolean,
+  pickFirstNumber,
+  pickFirstString,
+  pickNullableString,
+} from "#/utils/settings-value-pickers";
 
 export const getSettingsQueryFn = async (): Promise<Settings> => {
   const settings = await SettingsService.getSettings();

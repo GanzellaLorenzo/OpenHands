@@ -10,6 +10,7 @@ import { useMe } from "#/hooks/query/use-me";
 import { useSettings } from "#/hooks/query/use-settings";
 import { I18nKey } from "#/i18n/declaration";
 import { Typography } from "#/ui/typography";
+import { Settings, SettingsSchema } from "#/types/settings";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -27,62 +28,12 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { SchemaField } from "./schema-field";
-
-// ---------------------------------------------------------------------------
-// View tier toggle
-// ---------------------------------------------------------------------------
-function ViewToggle({
-  view,
-  setView,
-  showAdvanced,
-  showAll,
-}: {
-  view: SettingsView;
-  setView: (v: SettingsView) => void;
-  showAdvanced: boolean;
-  showAll: boolean;
-}) {
-  const { t } = useTranslation();
-
-  if (!showAdvanced && !showAll) return null;
-
-  return (
-    <div className="flex items-center gap-2 mb-6">
-      <BrandButton
-        testId="sdk-section-basic-toggle"
-        variant={view === "basic" ? "primary" : "secondary"}
-        type="button"
-        onClick={() => setView("basic")}
-      >
-        {t(I18nKey.SETTINGS$BASIC)}
-      </BrandButton>
-      {showAdvanced ? (
-        <BrandButton
-          testId="sdk-section-advanced-toggle"
-          variant={view === "advanced" ? "primary" : "secondary"}
-          type="button"
-          onClick={() => setView("advanced")}
-        >
-          {t(I18nKey.SETTINGS$ADVANCED)}
-        </BrandButton>
-      ) : null}
-      {showAll ? (
-        <BrandButton
-          testId="sdk-section-all-toggle"
-          variant={view === "all" ? "primary" : "secondary"}
-          type="button"
-          onClick={() => setView("all")}
-        >
-          {t(I18nKey.SETTINGS$ALL)}
-        </BrandButton>
-      ) : null}
-    </div>
-  );
-}
+import { ViewToggle } from "./view-toggle";
 
 export interface SdkSectionHeaderProps {
   values: SettingsFormValues;
   isDisabled: boolean;
+  view: SettingsView;
   onChange: (key: string, value: string | boolean) => void;
 }
 
@@ -99,11 +50,29 @@ export function SdkSectionPage({
   sectionKeys,
   excludeKeys = new Set<string>(),
   header,
+  extraDirty = false,
+  buildPayload,
+  onSaveSuccess,
+  getInitialView,
   testId = "sdk-section-settings-screen",
 }: {
   sectionKeys: string[];
   excludeKeys?: Set<string>;
   header?: (props: SdkSectionHeaderProps) => React.ReactNode;
+  extraDirty?: boolean;
+  buildPayload?: (
+    payload: ReturnType<typeof buildSdkSettingsPayload>,
+    context: {
+      values: SettingsFormValues;
+      dirty: SettingsDirtyState;
+      view: SettingsView;
+    },
+  ) => Record<string, unknown>;
+  onSaveSuccess?: () => void;
+  getInitialView?: (
+    settings: Settings,
+    filteredSchema: SettingsSchema,
+  ) => SettingsView;
   testId?: string;
 }) {
   const { t } = useTranslation();
@@ -136,11 +105,15 @@ export function SdkSectionPage({
   const showAll = hasMinorSettings(filteredSchema);
 
   React.useEffect(() => {
-    if (!settings?.agent_settings_schema) return;
+    if (!settings?.agent_settings_schema || !filteredSchema) return;
     setValues(buildInitialSettingsFormValues(settings));
     setDirty({});
-    setView(inferInitialView(settings, filteredSchema));
-  }, [settings, filteredSchema]);
+    setView(
+      getInitialView
+        ? getInitialView(settings, filteredSchema)
+        : inferInitialView(settings, filteredSchema),
+    );
+  }, [settings, filteredSchema, getInitialView]);
 
   const visibleSections = React.useMemo(() => {
     if (!filteredSchema) return [];
@@ -169,11 +142,18 @@ export function SdkSectionPage({
   );
 
   const handleSave = () => {
-    if (!fullSchema || isReadOnly) return;
+    if (!filteredSchema || isReadOnly) return;
 
-    let payload: ReturnType<typeof buildSdkSettingsPayload>;
+    let payload: Record<string, unknown>;
     try {
-      payload = buildSdkSettingsPayload(fullSchema, values, dirty);
+      const basePayload = buildSdkSettingsPayload(
+        filteredSchema,
+        values,
+        dirty,
+      );
+      payload = buildPayload
+        ? buildPayload(basePayload, { values, dirty, view })
+        : basePayload;
     } catch (error) {
       displayErrorToast(
         error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
@@ -188,6 +168,7 @@ export function SdkSectionPage({
       onSuccess: () => {
         displaySuccessToast(t(I18nKey.SETTINGS$SAVED_WARNING));
         setDirty({});
+        onSaveSuccess?.();
       },
     });
   };
@@ -217,6 +198,7 @@ export function SdkSectionPage({
         {header?.({
           values,
           isDisabled: isReadOnly,
+          view,
           onChange: handleFieldChange,
         })}
 
@@ -245,7 +227,9 @@ export function SdkSectionPage({
             testId="save-button"
             type="button"
             variant="primary"
-            isDisabled={isPending || Object.keys(dirty).length === 0}
+            isDisabled={
+              isPending || (Object.keys(dirty).length === 0 && !extraDirty)
+            }
             onClick={handleSave}
           >
             {isPending

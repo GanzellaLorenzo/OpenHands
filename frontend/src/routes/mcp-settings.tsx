@@ -12,8 +12,10 @@ import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { MCPConfig } from "#/types/settings";
 import { createPermissionGuard } from "#/utils/org/permission-guard";
+import { Typography } from "#/ui/typography";
 
 export const clientLoader = createPermissionGuard("manage_mcp");
+export const handle = { hideTitle: true };
 
 type MCPServerType = "sse" | "stdio" | "shttp";
 
@@ -135,6 +137,7 @@ function MCPSettingsScreen() {
     return (
       <MCPServerForm
         mode="add"
+        existingServers={allServers}
         onSubmit={handleAddServer}
         onCancel={() => setView("list")}
       />
@@ -146,6 +149,7 @@ function MCPSettingsScreen() {
       <MCPServerForm
         mode="edit"
         server={editingServer}
+        existingServers={allServers}
         onSubmit={handleEditServer}
         onCancel={() => {
           setEditingServer(null);
@@ -156,15 +160,15 @@ function MCPSettingsScreen() {
   }
 
   return (
-    <div className="h-full max-w-[1000px] mx-auto flex flex-col px-6 gap-6 pb-8 pt-11">
+    <div className="h-full max-w-[1000px] mx-auto flex flex-col px-6 gap-6 pb-8">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-2">
+          <Typography.H2 className="mb-2">
             {t(I18nKey.SETTINGS$MCP_TITLE)}
-          </h2>
-          <p className="text-sm text-[#A3A3A3]">
+          </Typography.H2>
+          <Typography.Paragraph className="text-sm text-[#A3A3A3]">
             {t(I18nKey.SETTINGS$MCP_DESCRIPTION)}
-          </p>
+          </Typography.Paragraph>
         </div>
         <BrandButton
           type="button"

@@ -58,6 +58,10 @@ function isJsonField(field: SettingsFieldSchema): boolean {
   return field.value_type === "array" || field.value_type === "object";
 }
 
+function isUrlField(field: SettingsFieldSchema): boolean {
+  return field.key.endsWith("url") || field.key.endsWith("_url");
+}
+
 function getInputType(
   field: SettingsFieldSchema,
 ): React.HTMLInputTypeAttribute {
@@ -66,6 +70,9 @@ function getInputType(
   }
   if (field.value_type === "integer" || field.value_type === "number") {
     return "number";
+  }
+  if (field.value_type === "string" && isUrlField(field)) {
+    return "url";
   }
   return "text";
 }
