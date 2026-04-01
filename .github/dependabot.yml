@@ -4,6 +4,7 @@ multi-ecosystem-groups:
   python-consolidated:
     schedule:
       interval: "daily"
+    open-pull-requests-limit: 5
 
 updates:
   # Handling Poetry
@@ -13,7 +14,6 @@ updates:
       - "/enterprise"
     schedule:
       interval: "daily"
-    open-pull-requests-limit: 5
     patterns:
       - "*"
     multi-ecosystem-group: "python-consolidated"
@@ -41,7 +41,6 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-    open-pull-requests-limit: 5
     patterns:
       - "*"
     multi-ecosystem-group: "python-consolidated"
