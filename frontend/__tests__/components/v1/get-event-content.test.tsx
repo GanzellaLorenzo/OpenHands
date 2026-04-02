@@ -146,67 +146,163 @@ describe("getEventContent", () => {
     expect(screen.queryByText("$ git status")).not.toBeInTheDocument();
   });
 
-  describe("ThinkAction raw JSON workaround", () => {
-    const createThinkAction = (summary?: string): ActionEvent => ({
-      id: "action-think",
-      timestamp: new Date().toISOString(),
-      source: "agent",
-      thought: [],
-      thinking_blocks: [],
-      action: {
-        kind: "ThinkAction",
-        thought: "Some thought content",
-      },
-      tool_name: "think",
-      tool_call_id: "tool-think",
-      tool_call: {
-        id: "tool-think",
-        type: "function",
-        function: {
-          name: "think",
-          arguments: '{"thought":"Some thought content"}',
+  describe("Raw JSON summary workaround", () => {
+    describe("ThinkAction", () => {
+      const createThinkAction = (summary?: string): ActionEvent => ({
+        id: "action-think",
+        timestamp: new Date().toISOString(),
+        source: "agent",
+        thought: [],
+        thinking_blocks: [],
+        action: {
+          kind: "ThinkAction",
+          thought: "Some thought content",
         },
-      },
-      llm_response_id: "response-think",
-      security_risk: SecurityRisk.LOW,
-      summary,
+        tool_name: "think",
+        tool_call_id: "tool-think",
+        tool_call: {
+          id: "tool-think",
+          type: "function",
+          function: {
+            name: "think",
+            arguments: '{"thought":"Some thought content"}',
+          },
+        },
+        llm_response_id: "response-think",
+        security_risk: SecurityRisk.LOW,
+        summary,
+      });
+
+      it("skips raw JSON default summary and falls back to translation", () => {
+        // SDK generates this when LLM does not provide a summary
+        const thinkAction = createThinkAction(
+          'think: {"thought": "Some thought content"}',
+        );
+        const { title } = getEventContent(thinkAction);
+
+        render(<span>{title}</span>);
+
+        // Should fall back to the translation key, not show raw JSON
+        expect(screen.getByText("ACTION_MESSAGE$THINK")).toBeInTheDocument();
+        expect(screen.queryByText(/think: \{/)).not.toBeInTheDocument();
+      });
+
+      it("preserves good summaries", () => {
+        const thinkAction = createThinkAction(
+          "Analyzing the test failure patterns",
+        );
+        const { title } = getEventContent(thinkAction);
+
+        render(<span>{title}</span>);
+
+        expect(
+          screen.getByText("Analyzing the test failure patterns"),
+        ).toBeInTheDocument();
+      });
+
+      it("uses translation when no summary", () => {
+        const thinkAction = createThinkAction(undefined);
+        const { title } = getEventContent(thinkAction);
+
+        render(<span>{title}</span>);
+
+        expect(screen.getByText("ACTION_MESSAGE$THINK")).toBeInTheDocument();
+      });
     });
 
-    it("skips raw JSON default summary for ThinkAction and falls back to translation", () => {
-      // SDK generates this when LLM does not provide a summary
-      const thinkAction = createThinkAction(
-        'think: {"thought": "Some thought content"}',
-      );
-      const { title } = getEventContent(thinkAction);
+    describe("FileEditorAction", () => {
+      const createFileEditorAction = (
+        command: "view" | "create" | "str_replace",
+        summary?: string,
+      ): ActionEvent => ({
+        id: "action-file",
+        timestamp: new Date().toISOString(),
+        source: "agent",
+        thought: [],
+        thinking_blocks: [],
+        action: {
+          kind: "FileEditorAction",
+          command,
+          path: "/workspace/README.md",
+          file_text: null,
+          old_str: null,
+          new_str: null,
+          insert_line: null,
+          view_range: null,
+        },
+        tool_name: "file_editor",
+        tool_call_id: "tool-file",
+        tool_call: {
+          id: "tool-file",
+          type: "function",
+          function: {
+            name: "file_editor",
+            arguments: `{"command":"${command}","path":"/workspace/README.md"}`,
+          },
+        },
+        llm_response_id: "response-file",
+        security_risk: SecurityRisk.LOW,
+        summary,
+      });
 
-      render(<span>{title}</span>);
+      it("skips raw JSON default summary and falls back to translation", () => {
+        // SDK generates this when LLM does not provide a summary
+        const fileAction = createFileEditorAction(
+          "view",
+          'file_editor: {"command": "view", "path": "/workspace/README.md"}',
+        );
+        const { title } = getEventContent(fileAction);
 
-      // Should fall back to the translation key, not show raw JSON
-      expect(screen.getByText("ACTION_MESSAGE$THINK")).toBeInTheDocument();
-      expect(screen.queryByText(/think: \{/)).not.toBeInTheDocument();
-    });
+        render(<span>{title}</span>);
 
-    it("preserves good summaries for ThinkAction", () => {
-      const thinkAction = createThinkAction(
-        "Analyzing the test failure patterns",
-      );
-      const { title } = getEventContent(thinkAction);
+        // Should fall back to the translation key (ACTION_MESSAGE$READ), not raw JSON
+        expect(screen.getByText("ACTION_MESSAGE$READ")).toBeInTheDocument();
+        expect(screen.queryByText(/file_editor: \{/)).not.toBeInTheDocument();
+      });
 
-      render(<span>{title}</span>);
+      it("preserves good summaries", () => {
+        const fileAction = createFileEditorAction(
+          "view",
+          "Checking project README for setup instructions",
+        );
+        const { title } = getEventContent(fileAction);
 
-      // Good summary should be displayed
-      expect(
-        screen.getByText("Analyzing the test failure patterns"),
-      ).toBeInTheDocument();
-    });
+        render(<span>{title}</span>);
 
-    it("uses translation when ThinkAction has no summary", () => {
-      const thinkAction = createThinkAction(undefined);
-      const { title } = getEventContent(thinkAction);
+        expect(
+          screen.getByText("Checking project README for setup instructions"),
+        ).toBeInTheDocument();
+      });
 
-      render(<span>{title}</span>);
+      it("uses translation when no summary - view command", () => {
+        const fileAction = createFileEditorAction("view", undefined);
+        const { title } = getEventContent(fileAction);
 
-      expect(screen.getByText("ACTION_MESSAGE$THINK")).toBeInTheDocument();
+        render(<span>{title}</span>);
+
+        // VIEW -> ACTION_MESSAGE$READ
+        expect(screen.getByText("ACTION_MESSAGE$READ")).toBeInTheDocument();
+      });
+
+      it("uses translation when no summary - create command", () => {
+        const fileAction = createFileEditorAction("create", undefined);
+        const { title } = getEventContent(fileAction);
+
+        render(<span>{title}</span>);
+
+        // CREATE -> ACTION_MESSAGE$WRITE
+        expect(screen.getByText("ACTION_MESSAGE$WRITE")).toBeInTheDocument();
+      });
+
+      it("uses translation when no summary - str_replace command", () => {
+        const fileAction = createFileEditorAction("str_replace", undefined);
+        const { title } = getEventContent(fileAction);
+
+        render(<span>{title}</span>);
+
+        // STR_REPLACE -> ACTION_MESSAGE$EDIT
+        expect(screen.getByText("ACTION_MESSAGE$EDIT")).toBeInTheDocument();
+      });
     });
   });
 });

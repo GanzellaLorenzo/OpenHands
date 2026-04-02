@@ -44,6 +44,29 @@ const getSummaryTitleForActionEvent = (
   return summary || null;
 };
 
+// WORKAROUND: Detect raw JSON default summaries that the SDK generates when
+// the LLM does not provide a summary. These show as "tool: {json args}" which
+// is confusing. Better to fall through to translation keys that build titles
+// from action data (e.g., "Reading /path" instead of "file_editor: {...}").
+// See: https://github.com/OpenHands/OpenHands/issues/13690
+// TODO: Remove once SDK fix is deployed
+const isRawJsonDefaultSummary = (
+  actionType: string,
+  summary: React.ReactNode,
+): boolean => {
+  if (typeof summary !== "string") return false;
+
+  switch (actionType) {
+    case "ThinkAction":
+      return summary.startsWith("think: {");
+    case "FileEditorAction":
+    case "StrReplaceEditorAction":
+      return summary.startsWith("file_editor: {");
+    default:
+      return false;
+  }
+};
+
 // Action Event Processing
 const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
   // Early return if not an action event
@@ -53,21 +76,10 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
 
   const actionType = event.action.kind;
   const summaryTitle = getSummaryTitleForActionEvent(event);
-  if (summaryTitle) {
-    // WORKAROUND: Skip raw JSON default summaries for ThinkAction.
-    // SDK generates "think: {\"thought\": ...}" when LLM does not provide summary.
-    // Fall through to "Thinking" translation, but preserve good summaries.
-    // See: https://github.com/OpenHands/OpenHands/issues/13690
-    // TODO: Remove once SDK fix is deployed
-    const isRawJsonDefault =
-      actionType === "ThinkAction" &&
-      typeof summaryTitle === "string" &&
-      summaryTitle.startsWith("think: {");
-    if (!isRawJsonDefault) {
-      return summaryTitle;
-    }
+  if (summaryTitle && !isRawJsonDefaultSummary(actionType, summaryTitle)) {
+    return summaryTitle;
   }
-  // Falls through to ACTION_MESSAGE$THINK → "Thinking"
+  // Falls through to translation keys that build titles from action data
   let actionKey = "";
   let actionValues: Record<string, unknown> = {};
 
@@ -161,7 +173,8 @@ const getObservationEventTitle = (
 
   if (correspondingAction) {
     const summaryTitle = getSummaryTitleForActionEvent(correspondingAction);
-    if (summaryTitle) {
+    const actionType = correspondingAction.action.kind;
+    if (summaryTitle && !isRawJsonDefaultSummary(actionType, summaryTitle)) {
       return summaryTitle;
     }
   }
