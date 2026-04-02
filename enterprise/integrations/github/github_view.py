@@ -10,6 +10,7 @@ from integrations.github.github_types import (
 )
 from integrations.models import Message
 from integrations.resolver_context import ResolverUserContext
+from integrations.resolver_org_router import resolve_org_for_repo
 from integrations.types import ResolverViewInterface, UserData
 from integrations.utils import (
     ENABLE_PROACTIVE_CONVERSATION_STARTERS,
@@ -155,9 +156,15 @@ class GithubIssue(ResolverViewInterface):
 
     async def initialize_new_conversation(self) -> ConversationMetadata:
         # FIXME: Handle if initialize_conversation returns None
-
         self.v1_enabled = await is_v1_enabled_for_github_resolver(
             self.user_info.keycloak_user_id
+        )
+
+        # Resolve target org based on claimed git organizations
+        self.resolved_org_id = await resolve_org_for_repo(
+            provider='github',
+            full_repo_name=self.full_repo_name,
+            keycloak_user_id=self.user_info.keycloak_user_id,
         )
 
         logger.info(
@@ -180,6 +187,7 @@ class GithubIssue(ResolverViewInterface):
             selected_branch=self._get_branch_name(),
             conversation_trigger=ConversationTrigger.RESOLVER,
             git_provider=ProviderType.GITHUB,
+            resolver_org_id=self.resolved_org_id,
         )
 
         self.conversation_id = conversation_metadata.conversation_id
@@ -294,7 +302,10 @@ class GithubIssue(ResolverViewInterface):
         )
 
         # Set up the GitHub user context for the V1 system
-        github_user_context = ResolverUserContext(saas_user_auth=saas_user_auth)
+        github_user_context = ResolverUserContext(
+            saas_user_auth=saas_user_auth,
+            resolver_org_id=self.resolved_org_id,
+        )
         setattr(injector_state, USER_CONTEXT_ATTR, github_user_context)
 
         async with get_app_conversation_service(
