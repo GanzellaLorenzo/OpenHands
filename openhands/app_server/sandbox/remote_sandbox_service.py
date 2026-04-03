@@ -4,6 +4,7 @@ import logging
 import os
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Union
+from urllib.parse import urlparse
 from uuid import UUID
 
 import base62
@@ -52,14 +53,6 @@ from openhands.sdk.utils.paging import page_iterator
 
 _logger = logging.getLogger(__name__)
 polling_task: asyncio.Task | None = None
-POD_STATUS_MAPPING = {
-    'ready': SandboxStatus.RUNNING,
-    'pending': SandboxStatus.STARTING,
-    'running': SandboxStatus.STARTING,
-    'failed': SandboxStatus.ERROR,
-    'unknown': SandboxStatus.ERROR,
-    'crashloopbackoff': SandboxStatus.ERROR,
-}
 STATUS_MAPPING = {
     'running': SandboxStatus.RUNNING,
     'paused': SandboxStatus.PAUSED,
@@ -142,12 +135,13 @@ class RemoteSandboxService(SandboxService):
                 exposed_urls = []
                 url = runtime.get('url', None)
                 if url:
+                    runtime_id = runtime['runtime_id']
                     exposed_urls.append(
                         ExposedUrl(name=AGENT_SERVER, url=url, port=AGENT_SERVER_PORT)
                     )
                     vscode_url = (
-                        _build_service_url(url, 'vscode')
-                        + f'/?tkn={session_api_key}&folder=%2Fworkspace%2Fproject'
+                        _build_service_url(url, 'vscode', runtime_id)
+                        + f'?tkn={session_api_key}&folder=%2Fworkspace%2Fproject'
                     )
                     exposed_urls.append(
                         ExposedUrl(name=VSCODE, url=vscode_url, port=VSCODE_PORT)
@@ -155,14 +149,14 @@ class RemoteSandboxService(SandboxService):
                     exposed_urls.append(
                         ExposedUrl(
                             name=WORKER_1,
-                            url=_build_service_url(url, 'work-1'),
+                            url=_build_service_url(url, 'work-1', runtime_id),
                             port=WORKER_1_PORT,
                         )
                     )
                     exposed_urls.append(
                         ExposedUrl(
                             name=WORKER_2,
-                            url=_build_service_url(url, 'work-2'),
+                            url=_build_service_url(url, 'work-2', runtime_id),
                             port=WORKER_2_PORT,
                         )
                     )
@@ -186,28 +180,22 @@ class RemoteSandboxService(SandboxService):
     def _get_sandbox_status_from_runtime(
         self, runtime: dict[str, Any] | None
     ) -> SandboxStatus:
-        """Derive a SandboxStatus from the runtime info. The legacy logic for getting
-        the status of a runtime is inconsistent. It is divided between a "status" which
-        cannot be trusted (It sometimes returns  "running" for cases when the pod is
-        still starting) and a "pod_status" which is not returned for list
-        operations."""
+        """Derive a SandboxStatus from the runtime info.
+
+        The status field is now the source of truth for sandbox status. It accounts
+        for both pod readiness and ingress availability, making it more reliable than
+        pod_status which only reflected pod state.
+        """
         if not runtime:
             return SandboxStatus.MISSING
 
-        status = None
-        pod_status = (runtime.get('pod_status') or '').lower()
-        if pod_status:
-            status = POD_STATUS_MAPPING.get(pod_status, None)
+        runtime_status = runtime.get('status')
+        if runtime_status:
+            status = STATUS_MAPPING.get(runtime_status.lower(), None)
+            if status is not None:
+                return status
 
-        # If we failed to get the status from the pod status, fall back to status
-        if status is None:
-            runtime_status = runtime.get('status')
-            if runtime_status:
-                status = STATUS_MAPPING.get(runtime_status.lower(), None)
-
-        if status is None:
-            return SandboxStatus.MISSING
-        return status
+        return SandboxStatus.MISSING
 
     async def _secure_select(self):
         query = select(StoredRemoteSandbox)
@@ -512,8 +500,9 @@ class RemoteSandboxService(SandboxService):
                     session_api_key
                 )
 
-            # Hack - result doesn't contain this
-            runtime_data['pod_status'] = 'pending'
+            # Log runtime assignment for observability
+            runtime_id = runtime_data.get('runtime_id', 'unknown')
+            _logger.info(f'Started sandbox {sandbox_id} with runtime_id={runtime_id}')
 
             return self._to_sandbox_info(stored_sandbox, runtime_data)
 
@@ -659,9 +648,21 @@ class RemoteSandboxService(SandboxService):
         return results
 
 
-def _build_service_url(url: str, service_name: str):
-    scheme, host_and_path = url.split('://')
-    return scheme + '://' + service_name + '-' + host_and_path
+def _build_service_url(url: str, service_name: str, runtime_id: str) -> str:
+    """Build a service URL for the given service name.
+
+    Handles both path-based and subdomain-based routing:
+    - Path mode (url path starts with /{runtime_id}): returns {scheme}://{netloc}/{runtime_id}/{service_name}
+    - Subdomain mode: returns {scheme}://{service_name}-{netloc}{path}
+    """
+    parsed = urlparse(url)
+    scheme, netloc, path = parsed.scheme, parsed.netloc, parsed.path or '/'
+    # Path mode if runtime_url path starts with /{id}
+    path_mode = path.startswith(f'/{runtime_id}')
+    if path_mode:
+        return f'{scheme}://{netloc}/{runtime_id}/{service_name}'
+    else:
+        return f'{scheme}://{service_name}-{netloc}{path}'
 
 
 async def poll_agent_servers(api_url: str, api_key: str, sleep_interval: int):

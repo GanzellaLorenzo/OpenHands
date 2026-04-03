@@ -4,6 +4,7 @@ import { ContextMenuListItem } from "../../context-menu/context-menu-list-item";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
+import { useConversationStore } from "#/stores/conversation-store";
 import { I18nKey } from "#/i18n/declaration";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import GlobeIcon from "#/icons/globe.svg?react";
@@ -13,6 +14,8 @@ import VSCodeIcon from "#/icons/vscode.svg?react";
 import PillIcon from "#/icons/pill.svg?react";
 import PillFillIcon from "#/icons/pill-fill.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
+import DoubleCheckIcon from "#/icons/double-check.svg?react";
+import { useTaskList } from "#/hooks/use-task-list";
 
 interface ConversationTabsContextMenuProps {
   isOpen: boolean;
@@ -26,8 +29,12 @@ export function ConversationTabsContextMenu({
   const ref = useClickOutsideElement<HTMLUListElement>(onClose);
   const { t } = useTranslation();
   const { conversationId } = useConversationId();
-  const { state, setUnpinnedTabs } =
+  const { state, setUnpinnedTabs, setRightPanelShown } =
     useConversationLocalStorageState(conversationId);
+  const { selectedTab, isRightPanelShown, setHasRightPanelToggled } =
+    useConversationStore();
+
+  const { hasTaskList } = useTaskList();
 
   const tabConfig = [
     {
@@ -42,6 +49,14 @@ export function ConversationTabsContextMenu({
     { tab: "browser", icon: GlobeIcon, i18nKey: I18nKey.COMMON$BROWSER },
   ];
 
+  if (hasTaskList) {
+    tabConfig.unshift({
+      tab: "tasklist",
+      icon: DoubleCheckIcon,
+      i18nKey: I18nKey.COMMON$TASK_LIST,
+    });
+  }
+
   if (!isOpen) return null;
 
   const handleTabClick = (tab: string) => {
@@ -49,6 +64,10 @@ export function ConversationTabsContextMenu({
       setUnpinnedTabs(state.unpinnedTabs.filter((item) => item !== tab));
     } else {
       setUnpinnedTabs([...state.unpinnedTabs, tab]);
+      if (selectedTab === tab && isRightPanelShown) {
+        setHasRightPanelToggled(false);
+        setRightPanelShown(false);
+      }
     }
   };
 

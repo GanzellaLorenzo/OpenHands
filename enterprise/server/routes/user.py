@@ -9,6 +9,7 @@ from utils.identity import resolve_display_name
 
 from openhands.integrations.provider import (
     PROVIDER_TOKEN_TYPE,
+    ProviderHandler,
 )
 from openhands.integrations.service_types import (
     Branch,
@@ -67,6 +68,53 @@ async def saas_get_user_installations(
     )
 
 
+@saas_user_router.get('/git-organizations')
+async def saas_get_user_git_organizations(
+    provider_tokens: PROVIDER_TOKEN_TYPE | None = Depends(get_provider_tokens),
+    access_token: SecretStr | None = Depends(get_access_token),
+    user_id: str | None = Depends(get_user_id),
+):
+    if not provider_tokens:
+        retval = await _check_idp(
+            access_token=access_token,
+            default_value={},
+        )
+        if retval is not None:
+            return retval
+        # _check_idp returned None (tokens refreshed on Keycloak side),
+        # but provider_tokens is still None for this request.
+        return JSONResponse(
+            content='Git provider token required.',
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    client = ProviderHandler(
+        provider_tokens=provider_tokens,
+        external_auth_token=access_token,
+        external_auth_id=user_id,
+    )
+
+    # SaaS users sign in with one provider at a time
+    provider = next(iter(provider_tokens))
+
+    if provider == ProviderType.GITHUB:
+        orgs = await client.get_github_organizations()
+    elif provider == ProviderType.GITLAB:
+        orgs = await client.get_gitlab_groups()
+    elif provider == ProviderType.BITBUCKET:
+        orgs = await client.get_bitbucket_workspaces()
+    else:
+        return JSONResponse(
+            content=f"Provider {provider.value} doesn't support git organizations",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return {
+        'provider': provider.value,
+        'organizations': orgs,
+    }
+
+
 @saas_user_router.get('/repositories', response_model=list[Repository])
 async def saas_get_user_repositories(
     sort: str = 'pushed',
@@ -111,30 +159,26 @@ async def saas_get_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
         user_info = await token_manager.get_user_info(access_token.get_secret_value())
-        if not user_info:
-            return JSONResponse(
-                content='Failed to retrieve user_info.',
-                status_code=status.HTTP_401_UNAUTHORIZED,
-            )
         # Prefer email from DB; fall back to Keycloak if not yet persisted
-        email = user_info.get('email') if user_info else None
-        sub = user_info.get('sub') if user_info else ''
+        email = user_info.email
+        sub = user_info.sub
         if sub:
-            db_user = await UserStore.get_user_by_id_async(sub)
+            db_user = await UserStore.get_user_by_id(sub)
             if db_user and db_user.email is not None:
                 email = db_user.email
 
+        user_info_dict = user_info.model_dump(exclude_none=True)
         retval = await _check_idp(
             access_token=access_token,
             default_value=User(
                 id=sub,
-                login=(user_info.get('preferred_username') if user_info else '') or '',
+                login=user_info.preferred_username or '',
                 avatar_url='',
                 email=email,
-                name=resolve_display_name(user_info) if user_info else None,
-                company=user_info.get('company') if user_info else None,
+                name=resolve_display_name(user_info_dict),
+                company=user_info.company,
             ),
-            user_info=user_info,
+            user_info=user_info_dict,
         )
         if retval is not None:
             return retval
@@ -364,16 +408,11 @@ async def _check_idp(
             content='User is not authenticated.',
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-    user_info = (
-        user_info
-        if user_info
-        else await token_manager.get_user_info(access_token.get_secret_value())
-    )
-    if not user_info:
-        return JSONResponse(
-            content='Failed to retrieve user_info.',
-            status_code=status.HTTP_401_UNAUTHORIZED,
+    if user_info is None:
+        user_info_model = await token_manager.get_user_info(
+            access_token.get_secret_value()
         )
+        user_info = user_info_model.model_dump(exclude_none=True)
     idp: str | None = user_info.get('identity_provider')
     if not idp:
         return JSONResponse(
@@ -388,5 +427,4 @@ async def _check_idp(
         access_token.get_secret_value(), ProviderType(idp)
     ):
         return default_value
-
     return None
