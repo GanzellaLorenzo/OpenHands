@@ -34,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   git_user_email: "openhands@all-hands.dev",
   v1_enabled: false,
   use_microvm: false, // MicroVM isolation via Kata Containers (disabled by default)
+  runtime_tier: "medium", // Default runtime size
 };
 
 /**
