@@ -5,13 +5,27 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import Field
 
 from openhands.agent_server.models import EventPage, EventSortOrder
 from openhands.app_server.config import depends_event_service
 from openhands.app_server.event.event_service import EventService
 from openhands.app_server.event_callback.event_callback_models import EventKind
 from openhands.sdk import Event
+from openhands.sdk.conversation.response_utils import get_agent_final_response
+from openhands.sdk.utils.models import OpenHandsModel
+from openhands.sdk.utils.paging import page_iterator
 from openhands.server.dependencies import get_dependencies
+
+
+class AgentFinalResponse(OpenHandsModel):
+    """Response model for the latest agent response endpoint."""
+
+    response: str = Field(
+        description='The final response message from the agent, '
+        'or an empty string if not found.'
+    )
+
 
 # We use the get_dependencies method here to signal to the OpenAPI docs that this endpoint
 # is protected. The actual protection is provided by SetAuthCookieMiddleware
@@ -108,3 +122,31 @@ async def batch_get_events(
     event_ids = [UUID(id_) for id_ in id]
     events = await event_service.batch_get_events(UUID(conversation_id), event_ids)
     return events
+
+
+@router.get('/latest-agent-response')
+async def get_latest_agent_response(
+    conversation_id: str,
+    event_service: EventService = event_service_dependency,
+) -> AgentFinalResponse:
+    """Get the final response from the agent for this conversation.
+
+    This extracts the last meaningful agent message from the conversation events.
+    The agent can end a conversation in two ways:
+    1. By calling the finish tool — returns the finish message
+    2. By returning a text message with no tool calls — returns that message
+
+    Returns:
+        AgentFinalResponse with the agent's final response string,
+        or an empty string if no agent response was found.
+    """
+    events: list[Event] = []
+    async for event in page_iterator(
+        event_service.search_events,
+        conversation_id=UUID(conversation_id),
+        sort_order=EventSortOrder.TIMESTAMP,
+    ):
+        events.append(event)
+
+    response = get_agent_final_response(events)
+    return AgentFinalResponse(response=response)
