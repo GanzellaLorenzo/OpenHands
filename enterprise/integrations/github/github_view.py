@@ -27,6 +27,7 @@ from server.auth.token_manager import TokenManager
 from server.config import get_config
 from storage.org_store import OrgStore
 from storage.proactive_conversation_store import ProactiveConversationStore
+from storage.saas_conversation_store import SaasConversationStore
 from storage.saas_secrets_store import SaasSecretsStore
 
 from openhands.agent_server.models import SendMessageRequest
@@ -42,16 +43,14 @@ from openhands.integrations.github.github_service import GithubServiceImpl
 from openhands.integrations.provider import PROVIDER_TOKEN_TYPE, ProviderType
 from openhands.integrations.service_types import Comment
 from openhands.sdk import TextContent
-from openhands.server.services.conversation_service import (
-    initialize_conversation,
-    start_conversation,
-)
+from openhands.server.services.conversation_service import start_conversation
 from openhands.server.user_auth.user_auth import UserAuth
 from openhands.storage.data_models.conversation_metadata import (
     ConversationMetadata,
     ConversationTrigger,
 )
 from openhands.utils.async_utils import call_sync_from_async
+from openhands.utils.conversation_summary import get_default_conversation_title
 
 OH_LABEL, INLINE_OH_LABEL = get_oh_labels(HOST)
 
@@ -155,7 +154,6 @@ class GithubIssue(ResolverViewInterface):
         return user_secrets.custom_secrets if user_secrets else None
 
     async def initialize_new_conversation(self) -> ConversationMetadata:
-        # FIXME: Handle if initialize_conversation returns None
         self.v1_enabled = await is_v1_enabled_for_github_resolver(
             self.user_info.keycloak_user_id
         )
@@ -180,17 +178,28 @@ class GithubIssue(ResolverViewInterface):
                 selected_repository=self.full_repo_name,
             )
 
-        conversation_metadata: ConversationMetadata = await initialize_conversation(  # type: ignore[assignment]
-            user_id=self.user_info.keycloak_user_id,
-            conversation_id=None,
-            selected_repository=self.full_repo_name,
-            selected_branch=self._get_branch_name(),
-            conversation_trigger=ConversationTrigger.RESOLVER,
-            git_provider=ProviderType.GITHUB,
-            resolver_org_id=self.resolved_org_id,
+        # Create the conversation store with resolver org routing
+        # (bypasses initialize_conversation to avoid threading enterprise-only
+        # resolver_org_id through the generic OSS interface)
+        store = await SaasConversationStore.get_resolver_instance(
+            get_config(),
+            self.user_info.keycloak_user_id,
+            self.resolved_org_id,
         )
 
-        self.conversation_id = conversation_metadata.conversation_id
+        conversation_id = uuid4().hex
+        conversation_metadata = ConversationMetadata(
+            trigger=ConversationTrigger.RESOLVER,
+            conversation_id=conversation_id,
+            title=get_default_conversation_title(conversation_id),
+            user_id=self.user_info.keycloak_user_id,
+            selected_repository=self.full_repo_name,
+            selected_branch=self._get_branch_name(),
+            git_provider=ProviderType.GITHUB,
+        )
+        await store.save_metadata(conversation_metadata)
+
+        self.conversation_id = conversation_id
         return conversation_metadata
 
     async def create_new_conversation(
