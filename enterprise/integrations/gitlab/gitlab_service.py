@@ -3,6 +3,7 @@ import asyncio
 from integrations.store_repo_utils import store_repositories_in_db
 from integrations.types import GitLabResourceType
 from pydantic import SecretStr
+from server.auth.constants import GITLAB_HOST
 from server.auth.token_manager import TokenManager
 from storage.gitlab_webhook import GitlabWebhook, WebhookStatus
 from storage.gitlab_webhook_store import GitlabWebhookStore
@@ -28,6 +29,10 @@ class SaaSGitLabService(GitLabService):
         external_token_manager: bool = False,
         base_domain: str | None = None,
     ):
+        # Default to GITLAB_HOST env var for self-hosted GitLab support
+        if base_domain is None and GITLAB_HOST and GITLAB_HOST != 'gitlab.com':
+            base_domain = GITLAB_HOST
+
         logger.info(
             f'SaaSGitLabService created with user_id {user_id}, external_auth_id {external_auth_id}, external_auth_token {'set' if external_auth_token else 'None'}, gitlab_token {'set' if token else 'None'}, external_token_manager {external_token_manager}'
         )

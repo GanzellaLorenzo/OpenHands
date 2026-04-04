@@ -28,6 +28,7 @@ from server.auth.constants import (
     DUPLICATE_EMAIL_CHECK,
     GITHUB_APP_CLIENT_ID,
     GITHUB_APP_CLIENT_SECRET,
+    GITLAB_TOKEN_URL,
     GITLAB_APP_CLIENT_ID,
     GITLAB_APP_CLIENT_SECRET,
     KEYCLOAK_REALM_NAME,
@@ -417,7 +418,7 @@ class TokenManager:
             return await self._parse_refresh_response(data)
 
     async def _refresh_gitlab_token(self, refresh_token: str) -> dict[str, str | int]:
-        url = 'https://gitlab.com/oauth/token'
+        url = GITLAB_TOKEN_URL
         logger.info(f'Refreshing GitLab token with URL: {url}')
 
         payload = {

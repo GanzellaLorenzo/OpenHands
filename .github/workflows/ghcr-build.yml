@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - "saas-rel-*"
+      - "jl/self-hosted-gitlab"
     tags:
       - "*"
   pull_request:
