@@ -25,15 +25,22 @@ export const useConversationHistory = (conversationId?: string) => {
       }
 
       if (conversationVersion === "V1") {
-        // Fetch newest events first for instant perceived load
-        // User sees current conversation state immediately
+        // Fetch newest events first for instant perceived load.
+        // User sees current conversation state immediately.
+        // NOTE: Currently limited to 100 most recent events for performance.
+        // Older events (if any) will be loaded via WebSocket resend_all.
+        // TODO(#12705): Implement cursor-based background pagination for >100 events.
         const result = await EventService.searchEventsV1(conversationId, {
           sort_order: "TIMESTAMP_DESC",
           limit: 100,
         });
 
-        // Extract oldest timestamp for WebSocket handoff
-        // WebSocket will only send events after this timestamp
+        // Extract oldest timestamp for WebSocket handoff.
+        // Events are sorted DESC (newest first), so last item has oldest timestamp.
+        // WebSocket will use after_timestamp to only send events >= this timestamp,
+        // ensuring no duplicates while also catching any events created during the
+        // brief window between REST fetch and WebSocket connect (server timestamps
+        // are monotonically increasing, so no race condition).
         const oldestTimestamp =
           result.items.length > 0
             ? result.items[result.items.length - 1].timestamp

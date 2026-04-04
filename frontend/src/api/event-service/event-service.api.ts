@@ -65,6 +65,8 @@ class EventService {
   }
 
   // V1 conversations — App Server REST endpoint
+  // Note: cursor parameter is exposed for future pagination of older events.
+  // Currently only the initial page is fetched; background pagination is planned.
   static async searchEventsV1(
     conversationId: string,
     options?: {

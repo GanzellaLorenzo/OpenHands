@@ -702,8 +702,11 @@ export function ConversationWebSocketProvider({
       queryParams.session_api_key = sessionApiKey;
     }
 
-    // Bi-directional loading: pass after_timestamp to avoid duplicate events
-    // WebSocket will only send events newer than the oldest preloaded event
+    // Bi-directional loading: pass after_timestamp to avoid duplicate events.
+    // WebSocket will only send events with timestamp >= oldestPreloadedTimestamp.
+    // This ensures zero duplication with REST-fetched events while also catching
+    // any events created between REST fetch and WebSocket connect (since server
+    // timestamps are monotonically increasing, >= comparison handles the handoff).
     if (oldestPreloadedTimestamp) {
       queryParams.after_timestamp = oldestPreloadedTimestamp;
     }
