@@ -8,9 +8,9 @@ import {
   MOCK_DEFAULT_USER_SETTINGS,
   resetTestHandlersMockSettings,
 } from "#/mocks/handlers";
-import LlmSettingsScreen from "#/routes/llm-settings";
+import LlmSettingsScreen, { clientLoader } from "#/routes/llm-settings";
 import { useSelectedOrganizationStore } from "#/stores/selected-organization-store";
-import { OrganizationMember } from "#/types/org";
+import { Organization, OrganizationMember } from "#/types/org";
 import { Settings } from "#/types/settings";
 
 const mockUseSearchParams = vi.fn();
@@ -60,6 +60,38 @@ function buildOrganizationMember(
   };
 }
 
+function buildOrganization(
+  overrides: Partial<Organization> = {},
+): Organization {
+  return {
+    id: overrides.id ?? "1",
+    name: overrides.name ?? "Example Org",
+    contact_name: overrides.contact_name ?? "Example Contact",
+    contact_email: overrides.contact_email ?? "contact@example.com",
+    conversation_expiration: overrides.conversation_expiration ?? 30,
+    remote_runtime_resource_factor:
+      overrides.remote_runtime_resource_factor ?? 1,
+    billing_margin: overrides.billing_margin ?? 0,
+    enable_proactive_conversation_starters:
+      overrides.enable_proactive_conversation_starters ?? false,
+    sandbox_base_container_image:
+      overrides.sandbox_base_container_image ??
+      "ghcr.io/all-hands-ai/runtime:latest",
+    sandbox_runtime_container_image:
+      overrides.sandbox_runtime_container_image ??
+      "ghcr.io/all-hands-ai/runtime:latest",
+    org_version: overrides.org_version ?? 1,
+    search_api_key: overrides.search_api_key ?? null,
+    sandbox_api_key: overrides.sandbox_api_key ?? null,
+    max_budget_per_task: overrides.max_budget_per_task ?? 0,
+    enable_solvability_analysis: overrides.enable_solvability_analysis ?? false,
+    v1_enabled: overrides.v1_enabled ?? true,
+    credits: overrides.credits ?? 0,
+    is_personal: overrides.is_personal,
+    ...overrides,
+  };
+}
+
 function buildSettingsWithAdvancedToggle(
   overrides: Partial<Settings> = {},
 ): Settings {
@@ -105,10 +137,12 @@ function renderLlmSettingsScreen({
   appMode = "oss",
   organizationId = "1",
   meData,
+  organizations,
 }: {
   appMode?: "oss" | "saas";
   organizationId?: string;
   meData?: OrganizationMember;
+  organizations?: Organization[];
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -123,10 +157,17 @@ function renderLlmSettingsScreen({
   });
 
   if (appMode === "saas") {
+    queryClient.setQueryData(["user", "authenticated", appMode], true);
     queryClient.setQueryData(
       ["organizations", organizationId, "me"],
       meData ?? buildOrganizationMember({ org_id: organizationId }),
     );
+    queryClient.setQueryData(["organizations"], {
+      items: organizations ?? [
+        buildOrganization({ id: organizationId, is_personal: false }),
+      ],
+      currentOrgId: organizationId,
+    });
   }
 
   return render(<LlmSettingsScreen />, {
@@ -268,6 +309,73 @@ describe("LlmSettingsScreen", () => {
 
     await screen.findByTestId("llm-settings-screen");
     expect(screen.queryByTestId("save-button")).not.toBeInTheDocument();
+  });
+
+  describe("Contextual info messages", () => {
+    it("should show admin info message for admin user in team organization", async () => {
+      vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+        buildSettings(),
+      );
+
+      renderLlmSettingsScreen({
+        appMode: "saas",
+        organizationId: "3",
+        meData: buildOrganizationMember({ org_id: "3", role: "admin" }),
+        organizations: [buildOrganization({ id: "3", is_personal: false })],
+      });
+
+      expect(
+        await screen.findByTestId("llm-settings-info-message"),
+      ).toBeInTheDocument();
+    });
+
+    it("should show member info message for member user in team organization", async () => {
+      vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+        buildSettings(),
+      );
+
+      renderLlmSettingsScreen({
+        appMode: "saas",
+        organizationId: "2",
+        meData: buildOrganizationMember({ org_id: "2", role: "member" }),
+        organizations: [buildOrganization({ id: "2", is_personal: false })],
+      });
+
+      expect(
+        await screen.findByTestId("llm-settings-info-message"),
+      ).toBeInTheDocument();
+    });
+
+    it("should not show info message for personal workspace", async () => {
+      vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+        buildSettings(),
+      );
+
+      renderLlmSettingsScreen({
+        appMode: "saas",
+        organizationId: "1",
+        meData: buildOrganizationMember({ org_id: "1", role: "owner" }),
+        organizations: [buildOrganization({ id: "1", is_personal: true })],
+      });
+
+      await screen.findByTestId("llm-settings-screen");
+      expect(
+        screen.queryByTestId("llm-settings-info-message"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("should not show info message in OSS mode", async () => {
+      vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+        buildSettings(),
+      );
+
+      renderLlmSettingsScreen({ appMode: "oss" });
+
+      await screen.findByTestId("llm-settings-screen");
+      expect(
+        screen.queryByTestId("llm-settings-info-message"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("submits basic form values through SDK setting keys", async () => {
@@ -581,6 +689,40 @@ describe("LlmSettingsScreen", () => {
         });
       });
 
+      it("should enable all input fields in advanced view", async () => {
+        vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+          buildSettingsWithAdvancedToggle({
+            llm_model: "openai/gpt-4o",
+            agent_settings: { "llm.model": "openai/gpt-4o" },
+          }),
+        );
+
+        renderLlmSettingsScreen({
+          appMode: "saas",
+          organizationId: "1",
+          meData: buildOrganizationMember({ org_id: "1", role: "owner" }),
+        });
+
+        await screen.findByTestId("llm-settings-screen");
+        await userEvent.click(
+          screen.getByTestId("sdk-section-advanced-toggle"),
+        );
+
+        const advancedForm = screen.getByTestId("llm-settings-form-advanced");
+        const customModelInput = within(advancedForm).getByTestId(
+          "llm-custom-model-input",
+        );
+        const baseUrlInput = within(advancedForm).getByTestId("base-url-input");
+        const apiKeyInput =
+          within(advancedForm).getByTestId("llm-api-key-input");
+
+        await waitFor(() => {
+          expect(customModelInput).not.toBeDisabled();
+          expect(baseUrlInput).not.toBeDisabled();
+          expect(apiKeyInput).not.toBeDisabled();
+        });
+      });
+
       it("should enable submit button when form is dirty", async () => {
         vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
           buildSettings({
@@ -668,6 +810,40 @@ describe("LlmSettingsScreen", () => {
         });
       });
 
+      it("should enable all input fields in advanced view", async () => {
+        vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+          buildSettingsWithAdvancedToggle({
+            llm_model: "openai/gpt-4o",
+            agent_settings: { "llm.model": "openai/gpt-4o" },
+          }),
+        );
+
+        renderLlmSettingsScreen({
+          appMode: "saas",
+          organizationId: "3",
+          meData: buildOrganizationMember({ org_id: "3", role: "admin" }),
+        });
+
+        await screen.findByTestId("llm-settings-screen");
+        await userEvent.click(
+          screen.getByTestId("sdk-section-advanced-toggle"),
+        );
+
+        const advancedForm = screen.getByTestId("llm-settings-form-advanced");
+        const customModelInput = within(advancedForm).getByTestId(
+          "llm-custom-model-input",
+        );
+        const baseUrlInput = within(advancedForm).getByTestId("base-url-input");
+        const apiKeyInput =
+          within(advancedForm).getByTestId("llm-api-key-input");
+
+        await waitFor(() => {
+          expect(customModelInput).not.toBeDisabled();
+          expect(baseUrlInput).not.toBeDisabled();
+          expect(apiKeyInput).not.toBeDisabled();
+        });
+      });
+
       it("should enable submit button when form is dirty", async () => {
         vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
           buildSettings({
@@ -723,6 +899,12 @@ describe("LlmSettingsScreen", () => {
         await waitFor(() => {
           expect(saveSettingsSpy).toHaveBeenCalled();
         });
+      });
+    });
+
+    describe("clientLoader permission checks", () => {
+      it("should export a clientLoader for route protection", () => {
+        expect(clientLoader).toBeTypeOf("function");
       });
     });
   });

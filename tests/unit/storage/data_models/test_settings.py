@@ -96,6 +96,15 @@ def test_settings_handles_sensitive_data():
     assert llm_api_key.get_secret_value() == 'test-key'
 
 
+def test_convert_to_settings():
+    settings_with_token_data = Settings(llm_api_key='test-key')
+
+    settings = convert_to_settings(settings_with_token_data)
+
+    assert settings.llm_api_key is not None
+    assert settings.llm_api_key.get_secret_value() == 'test-key'
+
+
 def test_settings_preserve_agent_settings():
     settings = Settings(
         agent_settings={

@@ -1,5 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AxiosError } from "axios";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +9,7 @@ import SettingsService from "#/api/settings-service/settings-service.api";
 import { SdkSectionPage } from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
+import * as ToastHandlers from "#/utils/custom-toast-handlers";
 
 const mockUseSearchParams = vi.fn();
 vi.mock("react-router", async () => {
@@ -37,6 +39,38 @@ function buildSettings(overrides: Partial<Settings> = {}): Settings {
       overrides.agent_settings_schema ??
       MOCK_DEFAULT_USER_SETTINGS.agent_settings_schema,
   };
+}
+
+function buildSavableSettings(): Settings {
+  return buildSettings({
+    agent_settings_schema: {
+      model_name: "AgentSettings",
+      sections: [
+        {
+          key: "llm",
+          label: "LLM",
+          fields: [
+            {
+              key: "llm.endpoint",
+              label: "Endpoint",
+              section: "llm",
+              section_label: "LLM",
+              value_type: "string",
+              default: "https://api.example.com",
+              choices: [],
+              depends_on: [],
+              prominence: "critical",
+              secret: false,
+              required: true,
+            },
+          ],
+        },
+      ],
+    },
+    agent_settings: {
+      "llm.endpoint": "https://api.example.com",
+    },
+  });
 }
 
 function renderSdkSectionPage(
@@ -244,6 +278,53 @@ describe("SdkSectionPage", () => {
     expect(
       await screen.findByTestId("sdk-settings-verification.critic_server_url"),
     ).toHaveAttribute("type", "url");
+  });
+
+  it("shows a success toast after saving settings", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSavableSettings(),
+    );
+    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+    const displaySuccessToastSpy = vi.spyOn(
+      ToastHandlers,
+      "displaySuccessToast",
+    );
+
+    renderSdkSectionPage({ sectionKeys: ["llm"] });
+
+    const endpointInput = await screen.findByTestId(
+      "sdk-settings-llm.endpoint",
+    );
+    await userEvent.clear(endpointInput);
+    await userEvent.type(endpointInput, "https://api.changed.example.com");
+    await userEvent.click(screen.getByTestId("save-button"));
+
+    await waitFor(() => {
+      expect(displaySuccessToastSpy).toHaveBeenCalled();
+    });
+  });
+
+  it("shows an error toast when saving settings fails", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSavableSettings(),
+    );
+    vi.spyOn(SettingsService, "saveSettings").mockRejectedValue(
+      new AxiosError("Request failed"),
+    );
+    const displayErrorToastSpy = vi.spyOn(ToastHandlers, "displayErrorToast");
+
+    renderSdkSectionPage({ sectionKeys: ["llm"] });
+
+    const endpointInput = await screen.findByTestId(
+      "sdk-settings-llm.endpoint",
+    );
+    await userEvent.clear(endpointInput);
+    await userEvent.type(endpointInput, "https://api.changed.example.com");
+    await userEvent.click(screen.getByTestId("save-button"));
+
+    await waitFor(() => {
+      expect(displayErrorToastSpy).toHaveBeenCalled();
+    });
   });
 
   it("allows saving custom payloads when only external state is dirty", async () => {
