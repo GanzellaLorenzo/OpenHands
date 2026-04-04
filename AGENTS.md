@@ -114,6 +114,7 @@ Backend:
 - Testing:
   - All tests are in `tests/unit/test_*.py`
   - To test new code, run `poetry run pytest tests/unit/test_xxx.py` where `xxx` is the appropriate file for the current functionality
+  - In this repo's Poetry env, backend tests may need `PYTHONPATH=.` prefixed (for example `PYTHONPATH=. poetry run pytest ...`) so imports like `openhands.app_server.*` resolve correctly during collection
   - Write all tests with pytest
 
   - Backend tests currently assume Python 3.12; under Python 3.13 some legacy imports (for example `aifc` via `openhands/core/logger.py`) break test collection. Prefer Python 3.12 for backend validation unless that import path is updated.

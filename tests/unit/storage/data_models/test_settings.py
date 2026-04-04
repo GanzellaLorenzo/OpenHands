@@ -97,7 +97,10 @@ def test_settings_handles_sensitive_data():
 
 
 def test_convert_to_settings():
-    settings_with_token_data = Settings(llm_api_key='test-key')
+    settings_with_token_data = Settings(
+        llm_model='test-model',
+        llm_api_key='test-key',
+    )
 
     settings = convert_to_settings(settings_with_token_data)
 

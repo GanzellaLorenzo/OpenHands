@@ -85,7 +85,7 @@ async def store_llm_settings(
 
 
 def convert_to_settings(settings_with_token_data: Settings) -> Settings:
-    """Convert settings with token data to Settings model."""
+    """Convert settings with token data to a plain ``Settings`` model."""
     settings_data = settings_with_token_data.model_dump()
 
     # Filter out additional fields from `SettingsWithTokenData`
@@ -95,13 +95,14 @@ def convert_to_settings(settings_with_token_data: Settings) -> Settings:
         if key in Settings.model_fields  # Ensures only `Settings` fields are included
     }
 
-    # Convert the API keys to `SecretStr` instances
-    filtered_settings_data['llm_api_key'] = settings_with_token_data.llm_api_key
+    # `model_dump()` exposes SDK-managed values under `agent_settings`, so preserve the
+    # actual raw payload explicitly when round-tripping into `Settings`.
+    filtered_settings_data['raw_agent_settings'] = dict(
+        settings_with_token_data.raw_agent_settings
+    )
     filtered_settings_data['search_api_key'] = settings_with_token_data.search_api_key
 
-    # Create a new Settings instance
-    settings = Settings(**filtered_settings_data)
-    return settings
+    return Settings(**filtered_settings_data)
 
 
 # NOTE: We use response_model=None for endpoints that return JSONResponse directly.
