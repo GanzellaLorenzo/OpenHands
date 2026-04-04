@@ -153,9 +153,14 @@ async def load_settings(
 
         provider_tokens_set: dict[ProviderType, str | None] = {}
         if git_providers:
+            gitlab_host = os.environ.get('GITLAB_HOST', '').strip()
             for provider_type, provider_token in git_providers.items():
                 if provider_token.token or provider_token.user_id:
-                    provider_tokens_set[provider_type] = provider_token.host
+                    host = provider_token.host
+                    # Fall back to GITLAB_HOST env var for self-hosted GitLab
+                    if not host and provider_type == ProviderType.GITLAB and gitlab_host and gitlab_host != 'gitlab.com':
+                        host = gitlab_host
+                    provider_tokens_set[provider_type] = host
 
         settings_with_token_data = GETSettingsModel(
             **settings.model_dump(exclude={'secrets_store'}),
