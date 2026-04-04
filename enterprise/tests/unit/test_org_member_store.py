@@ -12,6 +12,8 @@ from storage.role import Role
 from storage.user import User
 from storage.user_settings import UserSettings
 
+from openhands.storage.data_models.settings import Settings
+
 
 def test_get_kwargs_from_user_settings_uses_agent_settings_as_source_of_truth():
     user_settings = UserSettings(
@@ -47,6 +49,24 @@ def test_get_kwargs_from_user_settings_uses_agent_settings_as_source_of_truth():
         }
         == kwargs['agent_settings']
     )
+
+
+
+def test_get_kwargs_from_settings_starts_members_without_agent_setting_overrides():
+    settings = Settings(
+        llm_api_key='member-secret',
+        agent='CodeActAgent',
+        llm_model='anthropic/claude-sonnet-4-5-20250929',
+        llm_base_url='https://api.example.com',
+        max_iterations=42,
+        confirmation_mode=True,
+    )
+
+    kwargs = OrgMemberStore.get_kwargs_from_settings(settings)
+
+    assert kwargs['llm_api_key'].get_secret_value() == 'member-secret'
+    assert kwargs['agent_settings'] == {}
+
 
 
 def test_get_agent_settings_from_org_member_uses_canonical_snapshot_json():
@@ -1187,11 +1207,11 @@ def test_org_member_llm_settings_has_updates_empty():
     assert result is False
 
 
-def test_org_llm_settings_update_apply_to_org_skips_llm_api_key():
+def test_org_llm_settings_update_apply_to_org_updates_secret_fields():
     """
     GIVEN: OrgLLMSettingsUpdate with search_api_key and llm_api_key set
     WHEN: apply_to_org() is called
-    THEN: search_api_key is applied to org, but llm_api_key is not
+    THEN: both org-managed secret fields are applied to the org
     """
     from unittest.mock import MagicMock
 
@@ -1200,20 +1220,18 @@ def test_org_llm_settings_update_apply_to_org_skips_llm_api_key():
     # Arrange
     settings = OrgLLMSettingsUpdate(
         search_api_key='applied-to-org',
-        llm_api_key='should-not-be-applied',
+        llm_api_key='applied-to-org-llm-key',
     )
     mock_org = MagicMock()
     mock_org.search_api_key = None
+    mock_org.llm_api_key = None
 
     # Act
     settings.apply_to_org(mock_org)
 
     # Assert
     assert mock_org.search_api_key == 'applied-to-org'
-    assert (
-        not hasattr(mock_org, 'llm_api_key')
-        or mock_org.llm_api_key != 'should-not-be-applied'
-    )
+    assert mock_org.llm_api_key == 'applied-to-org-llm-key'
 
 
 def test_org_llm_settings_update_get_member_updates_includes_llm_api_key():

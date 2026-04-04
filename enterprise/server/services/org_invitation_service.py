@@ -365,12 +365,14 @@ class OrgInvitationService:
                 'Failed to set up organization access. Please try again.'
             )
 
-        # Step 4.5: Fetch organization to get its LLM settings
+        # Step 4.5: Ensure the organization still exists before adding membership
         org = await OrgStore.get_org_by_id(invitation.org_id)
         if not org:
             raise InvitationInvalidError('Organization not found')
 
-        # Step 5: Add user to organization with inherited org LLM settings
+        # Step 5: Add user to organization. New members start with no
+        # personal agent-setting overrides so future org default changes
+        # continue to flow through automatically.
         llm_api_key_secret = settings.get_secret_agent_setting('llm.api_key')
         llm_api_key = (
             llm_api_key_secret.get_secret_value() if llm_api_key_secret else ''
@@ -382,7 +384,7 @@ class OrgInvitationService:
             role_id=invitation.role_id,
             llm_api_key=llm_api_key,
             status='active',
-            agent_settings=OrgStore.get_agent_settings_from_org(org),
+            agent_settings={},
         )
 
         # Step 6: Mark invitation as accepted

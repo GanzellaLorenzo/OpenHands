@@ -157,9 +157,7 @@ class OrgMemberStore:
     def get_kwargs_from_settings(settings: Settings):
         return {
             'llm_api_key': settings.get_secret_agent_setting('llm.api_key'),
-            'agent_settings': settings.normalized_agent_settings(
-                strip_secret_values=True
-            ),
+            'agent_settings': {},
         }
 
     @staticmethod

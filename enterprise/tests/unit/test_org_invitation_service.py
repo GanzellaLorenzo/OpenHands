@@ -276,8 +276,10 @@ class TestAcceptInvitationEmailValidation:
             mock_update_status.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_accept_invitation_inherits_org_llm_settings(self, mock_invitation):
-        """Test that new members inherit the organization's LLM settings when accepting invitation."""
+    async def test_accept_invitation_starts_with_empty_agent_setting_overrides(
+        self, mock_invitation
+    ):
+        """Test that new members start without copied org agent-setting overrides."""
         # Arrange
         user_id = UUID('87654321-4321-8765-4321-876543218765')
         token = 'inv-test-token-12345'
@@ -340,14 +342,12 @@ class TestAcceptInvitationEmailValidation:
             # Act
             await OrgInvitationService.accept_invitation(token, user_id)
 
-            # Assert - verify add_user_to_org snapshots the org defaults onto
-            # the new membership row's canonical agent_settings blob.
+            # Assert - new members should inherit org defaults at read time,
+            # not by storing a copied snapshot as personal overrides.
             mock_add_user.assert_called_once()
             call_kwargs = mock_add_user.call_args.kwargs
             assert call_kwargs['llm_api_key'] == 'test-key'
-            assert call_kwargs[
-                'agent_settings'
-            ] == OrgStore.get_agent_settings_from_org(mock_org)
+            assert call_kwargs['agent_settings'] == {}
 
 
 class TestCreateInvitationsBatch:
