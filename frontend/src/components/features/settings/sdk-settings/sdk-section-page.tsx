@@ -196,6 +196,7 @@ export function SdkSectionPage({
         setView={setView}
         showAdvanced={showAdvanced}
         showAll={showAll}
+        isDisabled={isReadOnly}
       />
 
       <div className="flex flex-col gap-8 pb-20">

@@ -8,6 +8,7 @@ interface ViewToggleProps {
   setView: (view: SettingsView) => void;
   showAdvanced: boolean;
   showAll: boolean;
+  isDisabled?: boolean;
 }
 
 export function ViewToggle({
@@ -15,6 +16,7 @@ export function ViewToggle({
   setView,
   showAdvanced,
   showAll,
+  isDisabled = false,
 }: ViewToggleProps) {
   const { t } = useTranslation();
 
@@ -26,6 +28,7 @@ export function ViewToggle({
         testId="sdk-section-basic-toggle"
         variant={view === "basic" ? "primary" : "secondary"}
         type="button"
+        isDisabled={isDisabled}
         onClick={() => setView("basic")}
       >
         {t(I18nKey.SETTINGS$BASIC)}
@@ -35,6 +38,7 @@ export function ViewToggle({
           testId="sdk-section-advanced-toggle"
           variant={view === "advanced" ? "primary" : "secondary"}
           type="button"
+          isDisabled={isDisabled}
           onClick={() => setView("advanced")}
         >
           {t(I18nKey.SETTINGS$ADVANCED)}
@@ -45,6 +49,7 @@ export function ViewToggle({
           testId="sdk-section-all-toggle"
           variant={view === "all" ? "primary" : "secondary"}
           type="button"
+          isDisabled={isDisabled}
           onClick={() => setView("all")}
         >
           {t(I18nKey.SETTINGS$ALL)}

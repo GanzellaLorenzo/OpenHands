@@ -357,6 +357,89 @@ class Settings(BaseModel):
         return SecretStr(str(value))
 
     @property
+    def agent(self) -> str | None:
+        value = self.get_agent_setting('agent')
+        return str(value) if value is not None else None
+
+    @agent.setter
+    def agent(self, value: str | None) -> None:
+        self.set_agent_setting('agent', value)
+
+    @property
+    def llm_model(self) -> str | None:
+        value = self.get_agent_setting('llm.model')
+        return str(value) if value is not None else None
+
+    @llm_model.setter
+    def llm_model(self, value: str | None) -> None:
+        self.set_agent_setting('llm.model', value)
+
+    @property
+    def llm_base_url(self) -> str | None:
+        value = self.get_agent_setting('llm.base_url')
+        return str(value) if value is not None else None
+
+    @llm_base_url.setter
+    def llm_base_url(self, value: str | None) -> None:
+        self.set_agent_setting('llm.base_url', value)
+
+    @property
+    def llm_api_key(self) -> SecretStr | None:
+        return self.get_secret_agent_setting('llm.api_key')
+
+    @llm_api_key.setter
+    def llm_api_key(self, value: SecretStr | str | None) -> None:
+        normalized_value = (
+            value.get_secret_value() if isinstance(value, SecretStr) else value
+        )
+        self.set_agent_setting('llm.api_key', normalized_value)
+
+    @property
+    def confirmation_mode(self) -> bool | None:
+        value = self.get_agent_setting('verification.confirmation_mode')
+        return bool(value) if value is not None else None
+
+    @confirmation_mode.setter
+    def confirmation_mode(self, value: bool | None) -> None:
+        self.set_agent_setting('verification.confirmation_mode', value)
+
+    @property
+    def security_analyzer(self) -> str | None:
+        value = self.get_agent_setting('verification.security_analyzer')
+        return str(value) if value is not None else None
+
+    @security_analyzer.setter
+    def security_analyzer(self, value: str | None) -> None:
+        self.set_agent_setting('verification.security_analyzer', value)
+
+    @property
+    def enable_default_condenser(self) -> bool | None:
+        value = self.get_agent_setting('condenser.enabled')
+        return bool(value) if value is not None else None
+
+    @enable_default_condenser.setter
+    def enable_default_condenser(self, value: bool | None) -> None:
+        self.set_agent_setting('condenser.enabled', value)
+
+    @property
+    def condenser_max_size(self) -> int | None:
+        value = self.get_agent_setting('condenser.max_size')
+        return int(value) if value is not None else None
+
+    @condenser_max_size.setter
+    def condenser_max_size(self, value: int | None) -> None:
+        self.set_agent_setting('condenser.max_size', value)
+
+    @property
+    def max_iterations(self) -> int | None:
+        value = self.get_agent_setting('max_iterations')
+        return int(value) if value is not None else None
+
+    @max_iterations.setter
+    def max_iterations(self, value: int | None) -> None:
+        self.set_agent_setting('max_iterations', value)
+
+    @property
     def llm_api_key_is_set(self) -> bool:
         val = self.raw_agent_settings.get('llm.api_key')
         return bool(val and str(val).strip())

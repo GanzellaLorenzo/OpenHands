@@ -117,6 +117,8 @@ Backend:
   - Write all tests with pytest
 
   - Backend tests currently assume Python 3.12; under Python 3.13 some legacy imports (for example `aifc` via `openhands/core/logger.py`) break test collection. Prefer Python 3.12 for backend validation unless that import path is updated.
+  - The `Settings` model now stores SDK-managed values in `raw_agent_settings`, but legacy route code still expects flat attributes like `llm_model`, `llm_base_url`, and `llm_api_key`; preserve or update those compatibility accessors when touching settings routes to avoid breaking V0/V1 endpoints and mypy.
+
 
 
 Frontend:

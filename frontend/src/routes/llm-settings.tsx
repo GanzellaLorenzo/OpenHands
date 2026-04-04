@@ -30,6 +30,7 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { isCustomModel } from "#/utils/is-custom-model";
+import { DEFAULT_SETTINGS } from "#/services/settings";
 
 const LLM_EXCLUDED_KEYS = new Set([
   "llm.model",
@@ -109,7 +110,9 @@ function LlmSettingsScreen() {
   );
   const verifiedModels = resources?.verifiedModels || [];
   const verifiedProviders = resources?.verifiedProviders || [];
-  const defaultModel = resources?.defaultModel || DEFAULT_OPENHANDS_MODEL;
+  const defaultModel =
+    resources?.defaultModel ||
+    String(DEFAULT_SETTINGS.agent_settings?.["llm.model"] ?? "");
 
   const isSaasMode = config?.app_mode === "saas";
   const isAdminOrOwner = me?.role === "admin" || me?.role === "owner";
