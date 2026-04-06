@@ -31,7 +31,6 @@ from openhands.server.routes.conversation import app as conversation_api_router
 from openhands.server.routes.feedback import app as feedback_api_router
 from openhands.server.routes.files import app as files_api_router
 from openhands.server.routes.git import app as git_api_router
-from openhands.server.routes.health import add_health_endpoints
 from openhands.server.routes.manage_conversations import (
     app as manage_conversation_api_router,
 )
@@ -41,6 +40,7 @@ from openhands.server.routes.secrets import app as secrets_router
 from openhands.server.routes.security import app as security_api_router
 from openhands.server.routes.settings import app as settings_router
 from openhands.server.routes.trajectory import app as trajectory_router
+from openhands.app_server.status.status_router import router as health_router
 from openhands.server.shared import conversation_manager, server_config
 from openhands.server.types import AppMode
 from openhands.version import get_version
@@ -105,4 +105,4 @@ if server_config.enable_v1:
     # to agent-server containers through the main app
     app.include_router(websocket_proxy_router)
 app.include_router(trajectory_router)
-add_health_endpoints(app)
+app.include_router(health_router)
