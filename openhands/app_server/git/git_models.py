@@ -1,7 +1,8 @@
 """Git-related models for V1 API pagination responses."""
 
-from openhands.integrations.service_types import Repository
 from pydantic import BaseModel
+
+from openhands.integrations.service_types import Repository
 
 
 class InstallationPage(BaseModel):

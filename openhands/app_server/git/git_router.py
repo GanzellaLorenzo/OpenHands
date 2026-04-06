@@ -5,20 +5,19 @@ with pagination support. These endpoints are designed to replace the legacy V0 e
 in openhands/server/routes/git.py.
 """
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from openhands.app_server.config import depends_user_context
-from openhands.app_server.utils.dependencies import get_dependencies
-from openhands.app_server.user.user_context import UserContext
-from openhands.integrations.provider import ProviderHandler
-from openhands.integrations.service_types import AuthenticationError, ProviderType
-
+from openhands.app_server.config import depends_user_context, get_global_config
 from openhands.app_server.git.git_models import (
     InstallationPage,
     RepositoryPage,
 )
+from openhands.app_server.user.user_context import UserContext
+from openhands.app_server.utils.dependencies import get_dependencies
+from openhands.integrations.provider import PROVIDER_TOKEN_TYPE, ProviderHandler
+from openhands.integrations.service_types import ProviderType
 
 # We use the get_dependencies method here to signal to the OpenAPI docs that this endpoint
 # is protected. The actual protection is provided by SetAuthCookieMiddleware
@@ -27,6 +26,7 @@ router = APIRouter(
     tags=['Git'],
     dependencies=get_dependencies(),
 )
+user_context_dependency = depends_user_context()
 
 
 def _paginate_results(
@@ -66,7 +66,7 @@ async def get_user_installations(
         int,
         Query(title='The max number of results in the page', gt=0, le=100),
     ] = 100,
-    user_context: UserContext = depends_user_context(),
+    user_context: UserContext = user_context_dependency,
 ) -> InstallationPage:
     """Get user installations (GitHub apps) or equivalent for other providers.
 
@@ -82,7 +82,7 @@ async def get_user_installations(
 
     user_id = await user_context.get_user_id()
     client = ProviderHandler(
-        provider_tokens=provider_tokens,
+        provider_tokens=cast(PROVIDER_TOKEN_TYPE, provider_tokens),
         external_auth_id=user_id,
     )
 
@@ -117,7 +117,7 @@ async def get_user_repositories(
         int,
         Query(title='The max number of results in the page', gt=0, le=100),
     ] = 100,
-    user_context: UserContext = depends_user_context(),
+    user_context: UserContext = user_context_dependency,
 ) -> RepositoryPage:
     """Get user repositories.
 
@@ -133,19 +133,25 @@ async def get_user_repositories(
 
     user_id = await user_context.get_user_id()
     client = ProviderHandler(
-        provider_tokens=provider_tokens,
+        provider_tokens=cast(PROVIDER_TOKEN_TYPE, provider_tokens),
         external_auth_id=user_id,
     )
 
+    page = int(page_id) if page_id else 1
+
     # Get repositories - we'll handle pagination ourselves
-    repositories = await client.get_repositories(
+    items = await client.get_repositories(
         sort=sort,
-        app_mode=None,  # V1 doesn't use app_mode
+        app_mode=get_global_config().app_mode,
         selected_provider=provider,
-        page=1,  # Start from page 1
-        per_page=None,  # We'll handle pagination ourselves
+        page=page,
+        per_page=limit + 1,  # We'll handle pagination ourselves
         installation_id=installation_id,
     )
 
-    items, next_page_id = _paginate_results(repositories, page_id, limit)
+    next_page_id = None
+    if len(items) > limit:
+        items = items[:-1]
+        next_page_id = str(page + 1)
+
     return RepositoryPage(items=items, next_page_id=next_page_id)

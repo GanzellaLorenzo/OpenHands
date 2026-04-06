@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 from openhands.app_server.git.git_router import (
     _paginate_results,
     get_user_installations,
-    get_user_repositories,
     router,
 )
 from openhands.app_server.user.user_context import UserContext
@@ -88,9 +87,7 @@ def _make_mock_provider_handler():
         return_value=['inst-1', 'inst-2', 'inst-3', 'inst-4', 'inst-5']
     )
     handler.get_bitbucket_workspaces = AsyncMock(return_value=['ws-1', 'ws-2'])
-    handler.get_repositories = AsyncMock(
-        return_value=[]
-    )
+    handler.get_repositories = AsyncMock(return_value=[])
     return handler
 
 
@@ -180,7 +177,7 @@ class TestGetUserInstallations:
             provider_tokens={'github': 'token'},
             user_id='user-123',
         )
-        mock_handler = _make_mock_provider_handler()
+        _make_mock_provider_handler()
 
         # Act
         with pytest.MonkeyPatch.context() as m:
@@ -202,7 +199,7 @@ class TestGetUserInstallations:
     async def test_returns_second_page(self):
         """Test that second page is returned correctly."""
         # Arrange
-        mock_context = _make_mock_user_context(
+        _make_mock_user_context(
             provider_tokens={'github': 'token'},
             user_id='user-123',
         )
@@ -224,14 +221,12 @@ class TestGetUserRepositories:
     async def test_passes_sort_parameter(self):
         """Test that sort parameter is passed to provider."""
         # Arrange
-        mock_context = _make_mock_user_context(
+        _make_mock_user_context(
             provider_tokens={'github': 'token'},
             user_id='user-123',
         )
         mock_handler = _make_mock_provider_handler()
-        mock_handler.get_repositories = AsyncMock(
-            return_value=['repo-1', 'repo-2']
-        )
+        mock_handler.get_repositories = AsyncMock(return_value=['repo-1', 'repo-2'])
 
         # This test verifies that the sort parameter flows through
         # The actual integration would test more thoroughly
