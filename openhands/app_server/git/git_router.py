@@ -5,6 +5,7 @@ with pagination support. These endpoints are designed to replace the legacy V0 e
 in openhands/server/routes/git.py.
 """
 
+from types import MappingProxyType
 from typing import Annotated, cast
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -82,7 +83,7 @@ async def get_user_installations(
 
     user_id = await user_context.get_user_id()
     client = ProviderHandler(
-        provider_tokens=cast(PROVIDER_TOKEN_TYPE, provider_tokens),
+        provider_tokens=provider_tokens,
         external_auth_id=user_id,
     )
 
@@ -133,7 +134,7 @@ async def get_user_repositories(
 
     user_id = await user_context.get_user_id()
     client = ProviderHandler(
-        provider_tokens=cast(PROVIDER_TOKEN_TYPE, provider_tokens),
+        provider_tokens=MappingProxyType(provider_tokens),
         external_auth_id=user_id,
     )
 

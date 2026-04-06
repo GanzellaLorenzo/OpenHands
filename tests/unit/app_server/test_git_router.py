@@ -17,6 +17,7 @@ from openhands.app_server.git.git_router import (
 )
 from openhands.app_server.user.user_context import UserContext
 from openhands.app_server.utils.dependencies import check_session_api_key
+from openhands.integrations.provider import ProviderToken
 from openhands.integrations.service_types import ProviderType
 
 
@@ -126,28 +127,18 @@ class TestInstallationsEndpoint:
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_returns_400_for_unsupported_provider(self, test_client, monkeypatch):
-        """Test that 400 is returned for unsupported provider."""
+    def test_returns_422_for_unsupported_provider(self, test_client, monkeypatch):
+        """Test that 422 is returned for unsupported provider."""
         mock_context = _make_mock_user_context(provider_tokens={'github': 'token'})
-        mock_handler = _make_mock_provider_handler()
-        # Override the handler to raise error for invalid provider
-        mock_handler.get_github_installations = AsyncMock(
-            side_effect=ValueError('Invalid provider')
-        )
 
         # Patch the ProviderHandler
         monkeypatch.setattr(
             'openhands.app_server.git.git_router.depends_user_context',
             lambda: mock_context,
         )
-        monkeypatch.setattr(
-            'openhands.app_server.git.git_router.ProviderHandler',
-            lambda provider_tokens, external_auth_id: mock_handler,
-        )
 
         response = test_client.get('/git/installations', params={'provider': 'invalid'})
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 class TestRepositoriesEndpoint:
@@ -174,7 +165,9 @@ class TestGetUserInstallations:
         """Test that installations are returned with pagination."""
         # Arrange
         mock_context = _make_mock_user_context(
-            provider_tokens={'github': 'token'},
+            provider_tokens={
+                ProviderType.GITHUB: ProviderToken(user_id='user-123', token='token')
+            },
             user_id='user-123',
         )
         _make_mock_provider_handler()
