@@ -58,6 +58,26 @@ SLACK_USER_MSG_KEY_PREFIX = 'slack_user_msg'
 # Arbitrary timeout based on typical user attention span; may be tuned based on feedback
 SLACK_USER_MSG_EXPIRATION = 300
 
+# "No Repository" option for Slack external_select dropdown
+# This option is always available as the first choice, allowing users to start
+# a conversation without selecting a specific repository
+NO_REPOSITORY_OPTION: dict[str, Any] = {
+    'text': {'type': 'plain_text', 'text': 'No Repository'},
+    'value': '-',
+}
+
+
+def get_no_repository_options() -> list[dict[str, Any]]:
+    """Return the default options list with just the "No Repository" option.
+
+    This is used to provide an immediate option when the dropdown opens,
+    before repository search results are loaded.
+
+    Returns:
+        List containing only the "No Repository" option
+    """
+    return [NO_REPOSITORY_OPTION.copy()]
+
 
 class SlackManager(Manager[SlackViewInterface]):
     def __init__(self, token_manager):
@@ -297,12 +317,7 @@ class SlackManager(Manager[SlackViewInterface]):
         Returns:
             List of Slack option objects
         """
-        options: list[dict[str, Any]] = [
-            {
-                'text': {'type': 'plain_text', 'text': 'No Repository'},
-                'value': '-',
-            }
-        ]
+        options = get_no_repository_options()
         options.extend(
             {
                 'text': {

@@ -7,6 +7,7 @@ from integrations.slack.slack_manager import (
     SLACK_USER_MSG_EXPIRATION,
     SLACK_USER_MSG_KEY_PREFIX,
     SlackManager,
+    get_no_repository_options,
 )
 from integrations.slack.slack_view import SlackNewConversationView
 from storage.slack_user import SlackUser
@@ -666,24 +667,24 @@ class TestOnOptionsLoadEndpoint:
 
     @pytest.mark.asyncio
     @patch('server.routes.integration.slack.SLACK_WEBHOOKS_ENABLED', False)
-    async def test_on_options_load_disabled_returns_empty_options(
+    async def test_on_options_load_disabled_returns_no_repository_option(
         self, mock_request, background_tasks
     ):
-        """Test that when webhooks are disabled, empty options are returned."""
+        """Test that when webhooks are disabled, 'No Repository' option is still returned."""
         from server.routes.integration.slack import on_options_load
 
         response = await on_options_load(mock_request, background_tasks)
 
         assert response.status_code == 200
         body = json.loads(response.body)
-        assert body == {'options': []}
+        assert body == {'options': get_no_repository_options()}
 
     @pytest.mark.asyncio
     @patch('server.routes.integration.slack.SLACK_WEBHOOKS_ENABLED', True)
-    async def test_on_options_load_no_payload_returns_empty_options(
+    async def test_on_options_load_no_payload_returns_no_repository_option(
         self, mock_request, background_tasks
     ):
-        """Test that when no payload is in request, empty options are returned."""
+        """Test that when no payload is in request, 'No Repository' option is still returned."""
         from server.routes.integration.slack import on_options_load
 
         mock_request.body = AsyncMock(return_value=b'')
@@ -695,7 +696,7 @@ class TestOnOptionsLoadEndpoint:
 
         assert response.status_code == 200
         body = json.loads(response.body)
-        assert body == {'options': []}
+        assert body == {'options': get_no_repository_options()}
 
     @pytest.mark.asyncio
     @patch('server.routes.integration.slack.SLACK_WEBHOOKS_ENABLED', True)
@@ -728,10 +729,10 @@ class TestOnOptionsLoadEndpoint:
     @pytest.mark.asyncio
     @patch('server.routes.integration.slack.SLACK_WEBHOOKS_ENABLED', True)
     @patch('server.routes.integration.slack.signature_verifier')
-    async def test_on_options_load_wrong_payload_type_returns_empty_options(
+    async def test_on_options_load_wrong_payload_type_returns_no_repository_option(
         self, mock_signature_verifier, mock_request, background_tasks
     ):
-        """Test that non-block_suggestion payload returns empty options."""
+        """Test that non-block_suggestion payload returns 'No Repository' option."""
         from server.routes.integration.slack import on_options_load
 
         payload = {
@@ -750,13 +751,13 @@ class TestOnOptionsLoadEndpoint:
 
         assert response.status_code == 200
         body = json.loads(response.body)
-        assert body == {'options': []}
+        assert body == {'options': get_no_repository_options()}
 
     @pytest.mark.asyncio
     @patch('server.routes.integration.slack.SLACK_WEBHOOKS_ENABLED', True)
     @patch('server.routes.integration.slack.signature_verifier')
     @patch('server.routes.integration.slack.slack_manager')
-    async def test_on_options_load_unauthenticated_user_returns_empty_options(
+    async def test_on_options_load_unauthenticated_user_returns_no_repository_option(
         self,
         mock_slack_manager,
         mock_signature_verifier,
@@ -764,7 +765,7 @@ class TestOnOptionsLoadEndpoint:
         background_tasks,
         valid_block_suggestion_payload,
     ):
-        """Test that unauthenticated users get empty options and linking message is queued."""
+        """Test that unauthenticated users get 'No Repository' option and linking message is queued."""
         from server.routes.integration.slack import on_options_load
 
         payload_str = json.dumps(valid_block_suggestion_payload)
@@ -780,7 +781,7 @@ class TestOnOptionsLoadEndpoint:
 
         assert response.status_code == 200
         body = json.loads(response.body)
-        assert body == {'options': []}
+        assert body == {'options': get_no_repository_options()}
 
         # Verify background task was queued for account linking message
         background_tasks.add_task.assert_called_once()
@@ -897,7 +898,7 @@ class TestOnOptionsLoadEndpoint:
     @patch('server.routes.integration.slack.SLACK_WEBHOOKS_ENABLED', True)
     @patch('server.routes.integration.slack.signature_verifier')
     @patch('server.routes.integration.slack.slack_manager')
-    async def test_on_options_load_search_exception_returns_empty_options(
+    async def test_on_options_load_search_exception_returns_no_repository_option(
         self,
         mock_slack_manager,
         mock_signature_verifier,
@@ -907,7 +908,7 @@ class TestOnOptionsLoadEndpoint:
         mock_slack_user,
         mock_user_auth,
     ):
-        """Test that when search raises an exception, empty options are returned gracefully."""
+        """Test that when search raises an exception, 'No Repository' option is returned gracefully."""
         from server.routes.integration.slack import on_options_load
 
         payload_str = json.dumps(valid_block_suggestion_payload)
@@ -930,7 +931,7 @@ class TestOnOptionsLoadEndpoint:
 
         assert response.status_code == 200
         body = json.loads(response.body)
-        assert body == {'options': []}
+        assert body == {'options': get_no_repository_options()}
 
     @pytest.mark.asyncio
     @patch('server.routes.integration.slack.SLACK_WEBHOOKS_ENABLED', True)
